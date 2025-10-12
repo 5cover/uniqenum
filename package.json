@@ -1,0 +1,22 @@
+{
+  "name": "uniqenum",
+  "version": "1.0.0",
+  "description": "Unique enum C meta-programming macro family.",
+  "license": "MIT",
+  "author": "5cover",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "tsx --test",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "commander": "^14.0.1",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3",
+    "undici-types": "^6.21.0"
+  },
+  "devDependencies": {
+    "@commander-js/extra-typings": "^14.0.0"
+  }
+}
