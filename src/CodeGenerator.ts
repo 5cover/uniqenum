@@ -29,7 +29,7 @@ export class C11CodeGenerator implements CodeGenerator {
 
     private finishMacro(n: number) {
         const p = Array.from({length: 2 * n + 2}, (_,i) => ident(i));
-        const body = Array.from({length: n}, (_, i) => `${p[2 * n]}=(${p[2*n+1]})`);
+        const body = Array.from({length: n}, (_, i) => `${p[2 * i]}=(${p[2*i+1]})`);
         return (staticAssertionBody: string) => `#define uniqenum${n}(${p.join(',')})enum ${p.at(-2)}{${body.join(',')}}${p.at(-1)};_Static_assert(${staticAssertionBody},"duplicate enum values")\n`
     }
 

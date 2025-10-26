@@ -8,8 +8,7 @@ program
     .name('uniqenum')
     .description('Unique enum C meta-programming macro family.')
     .argument('<N>')
-    .action((_, n) => {
-        console.log(n)
+    .action((n) => {
         generateUniqenum(
             {
                 A: 127,
