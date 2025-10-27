@@ -165,7 +165,7 @@ so drop cross differences (the xW_H business) it does not help.
 
 instead build vN from multiples v of smaller N, effectively paving a right triangle from right triangles.
 
-Group factors by distance between indices, i.e., all pairs separated by the same offset 
+Group factors by distance between indices, i.e., all pairs separated by the same offset
 
 ```text
 Δ1: (a-b)(b-c)(c-d)(d-e)(e-f)(f-g)(g-h)(h-i)
@@ -190,3 +190,15 @@ and it's self-similar
 meaning that we can use vN as a primitive
 
 but does mirroring work
+
+todo: to see if it is really self similar, try to express it as the difference between the index of the  two terms. ie. instaed of
+
+```text
+(a-b)(b-c)
+(a-c)
+```
+
+```text
+1 1
+2
+```
