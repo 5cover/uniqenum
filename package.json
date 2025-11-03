@@ -17,6 +17,7 @@
     "undici-types": "^6.21.0"
   },
   "devDependencies": {
-    "@commander-js/extra-typings": "^14.0.0"
+    "@commander-js/extra-typings": "^14.0.0",
+    "@types/node": "^24.10.0"
   }
 }

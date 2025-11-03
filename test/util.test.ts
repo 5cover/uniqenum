@@ -1,6 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import * as u from '../src/util.js';
+import { stdin } from 'node:process';
+import * as readline from 'node:readline/promises';
 
 describe('util module', () => {
     it('generatres combinations', () => {
@@ -274,3 +276,31 @@ describe('util module', () => {
         }
     });
 });
+
+/**
+ * Demonstrates the closed form for the ident(N) length: \lceil\log_{63}(\frac{31(i + 1)}{26})\rceil
+ */
+async function identLengthDemonstration() {
+    const N = 100;
+    let n = 0;
+    const LN63 = Math.log(63);
+    const rl = readline.createInterface(stdin);
+    while (true) {
+        console.table(
+            Array.from({ length: N }, (_, i) => {
+                i += n;
+                const d = u.ident(i);
+                return { i, ident: d, length: d.length, approx: pctfmt(d.length, Math.ceil(Math.log(31 * (i + 1) / 26) / LN63)) };
+            }),
+            ['i', 'ident', 'length', 'approx']
+        );
+        n += N;
+        await rl.question('Continue?');
+    }
+
+    function pctfmt(target: number, x: number): string | number {
+        return target === x ? x : `${x} (${x > target ? '+' : ''}${(100 * (x - target)) / target}%)`;
+    }
+}
+
+await identLengthDemonstration();

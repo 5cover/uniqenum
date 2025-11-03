@@ -111,7 +111,7 @@ _Static_assert(areuniq3(A,B,C), "Enum values must be unique");
 _Static_assert(C == C_synonym, "Enum values and synonym must be equal");
 ```
 
-`uniqenumN` is just a shorthand for enum definition + _Static_assert of uniqueness. The two can be separated by exposing the uniqueness check expression as its own macro family, allowing for the preservation of the original enum syntax.
+`uniqenumN` is just a shorthand for enum definition + \_Static_assert of uniqueness. The two can be separated by exposing the uniqueness check expression as its own macro family, allowing for the preservation of the original enum syntax.
 
 This reduces the learning curve and preserves code readability by avoiding hiding an enum definition behind a macro.
 
@@ -136,27 +136,27 @@ The following values are generated using the ident function, but not in left to 
 
 Indeed, in order to save as many bytes as possible, we need to reserve the shortest identifiers for values, keeping the longest ones for enumerators. Because we spell each value at least twice, and each enumerator only once. Therefore, we use this pattern:
 
-Ident #|used as
--|-
-1|value 1
-2|value 2
-N|value N
-N + 1|key 1
-N + N|key N
+| Ident # | used as |
+| ------- | ------- |
+| 1       | value 1 |
+| 2       | value 2 |
+| N       | value N |
+| N + 1   | key 1   |
+| N + N   | key N   |
 
 hence the intermixed "f,a,g,b,h..." you're seeing.
 
-## ident(n): injective identifier generation
+## ident(n): bijective identifier generation
 
-ident(n) is an injective, deterministic function that encodes a positive natural number into a valid C macro parameter name. It picks from available identifiers chars in this order:
+ident(n) is an bijective, pure function that encodes a positive natural number into a valid C macro parameter name. It picks from available identifiers chars in this order:
 
 - a-z
 - A-Z
-- _, except for the first char
+- \_, except for the first char
 - 1-9
 - 0, except for the first char
 
-that's 26*2=52 chars for the first char, and 52+1+10=63 fxor the other ones
+that's 26\*2=52 chars for the first char, and 52+1+10=63 fxor the other ones
 
 Like in spreadsheet app columns, when we go above 63, we just add a new character, a new "digit" in this mixed-radix representation
 
@@ -242,7 +242,7 @@ Example for N=9:
 
 Split center rectangle:
 
-4*5
+4\*5
 
 ```text
 (a-e)(b-e)(c-e)(d-e)
@@ -289,7 +289,7 @@ then: check if continuous: does the required depth always grow with N? can we ex
 facts:
 
 - our recursion limit is 200.
-- triangle recursion should be as rare as possible in order to consume all our budget, since  they are longer to express and require more helpers.
+- triangle recursion should be as rare as possible in order to consume all our budget, since they are longer to express and require more helpers.
 - triangle recursion is more efficient at big N, (N/2, goes down faster), whereas row recursion is constant (always N-1)
 
 ### restating the problem as highway construction
@@ -309,7 +309,7 @@ How distance(n) is calculated:
 For any n in [2;N], we can compute its "distance" from 2 (which has a distance to itself of 0) as:
 
 - 0 if n = 2
-- 1 + max(distance(floor(n/2)), distance(ceil(n/2))) if n is a highway
+- 1 + distance(ceil(n/2)) if n is a highway
 - 1 + distance(n - 1) otherwise (n is a rural road)
 
 We can start by considering there are roads everywhere.
@@ -320,7 +320,7 @@ Precision: any distance for N is fine, as long as it is <= D. There's no prefere
 
 All that matters is distance(n) <= D for all n in [2;N]
 
-## possible solution: representing Vandermonde as a self-similar structure
+## ~~possible solution: representing Vandermonde as a self-similar structure~~
 
 Since our goal is to use helpers to minimize restating of terms.
 
@@ -353,7 +353,7 @@ For N=9:
 
 The number of factors at row Δm is $N-m$.
 I
-Is this  self-similar
+Is this self-similar
 
 Yes. vN is N-1 Δ1 factors, N-2 Δ2 factors, ..., up to 1 ΔN-1 factor.
 
@@ -405,3 +405,203 @@ bottom right
   2
 3 3
 ```
+
+Clearly it doesn't work, it's not self similar.
+
+## new approach: Clique model
+
+Instead of trying to find new representations, let's just do what always works: turn it into a graph.
+
+- Vertices: parameters (a,b,c...)
+- Edges: differences (a-b, b-c, etc)
+
+$v_N$ can be represented as an undirected clique of N edges.
+
+The clique edges form all unsorted pairs, reproducing the Vandermonde formula.
+
+Now the challenge is as follows: to build the clique for N using smaller cliques of $M<N$, as few as possible, so that each parameter is stated as few times as possible.
+
+The cost of a clique is the number of characters the minified implementation of it would require, not including unavoidable static costs (C syntax requirements, parens, etc). For the general case ($N>2$), the calculation is as follows:
+
+- `len('areuniq')`
+- `lendigits(N)`
+- Sum for each sub-clique of size `M<N`:
+  - 2: parens for the macro call
+  - `len('areuniq')`
+  - `lendigits(M)`
+  - `M-1`: commas between parameters
+  - Sum for each ident `m` vertex part of the sub-clique:
+    - len(m)
+- (number of sub-cliques)-1 : stars between each sub-clique to multiply them together
+
+`lendigits(x)` is the number of digits to represent x in base 10.
+
+We could reduce the cost of digitCounts and `areuniq` by turning the macro name in an ident(M) (but it would need careful handling to avoid being shadowed by macro parameters in the implementation part), but we'd be loosing readability for calls outside. Unless we provide an interface `#define areuniq4(a,b,c,d) D(a,b,c,d)` or something. but we loose one depth level. I doubt it's worth it, but it's possible that it is.
+
+General Note: we should use `a!=b` instead of `a-b`. Longer, but avoid overflow problems with differences. We can still use `*` instead of `&&` though.
+
+Accepted. I’ll continue the document. Short, formal, implementation-ready.
+
+# Graph / clique approach — continuation
+
+## Summary of the idea (one sentence)
+
+Represent the Vandermonde `v_N = ∏_{i<j} (a_i - a_j)` as a product of Vandermonde factors on smaller vertex subsets by covering the complete graph (K_N) with smaller cliques. If every unordered pair ({i,j}) is contained in at least one chosen clique, the product of Vandermonde determinants for those cliques is zero exactly when some pair is equal. Multiplicity of factors is allowed.
+
+## Why this fixes the problems you had
+
+- **Removes quadratic expansion**. We never emit every (\binom{N}{2}) pair. We emit Vandermonde on smaller subsets and multiply them.
+- **Cost / depth tradeoff is explicit**. A balanced k-partition at each level yields a simple analytic cost factor and a simple depth recurrence. This lets you pick k to meet depth D while minimizing emitted token count.
+- **Keeps semantics**. Multiplying factors multiple times does not change the zero/non-zero property used by `_Static_assert`.
+- **Generatable**. The structure is regular. A code generator (Python) can emit the macro tree automatically using the ident scheme you already designed.
+
+## Math: cost and depth for k-partitions
+
+Partition (V) into (k) nearly-equal parts (V*1..V_k). Take one clique for each unordered pair (i<j): (C*{ij}=V_i\cup V_j).
+
+- Number of cliques: (\binom{k}{2}).
+- Each clique size ≈ (2n/k).
+- Top-level cost factor (= \frac{\sum |C\_{ij}|}{n} \approx (k-1)). (Derivation: each part appears in (k-1) of the unions, so total = ((k-1)n).)
+- Depth recurrence: (\text{depth}(n) \le 1 + \text{depth}(\lceil 2n/k \rceil)).
+
+Tradeoff:
+
+- Larger k increases cost linearly (factor (k-1)).
+- Larger k decreases depth (smaller child size).
+- k must be (\ge 3) to avoid producing full-size clique.
+
+### Practical choices for N ≤ 1e6 and D = 200
+
+- k = 3 gives cost factor (=2) (optimal (2N)) and depth ~ (\log\_{3/2} N). For (N=10^6) depth ≈ 35. Well below 200.
+- k = 4 gives factor (=3) and depth ~ (\log_2 N) (~20).
+- Therefore pick k = 3 everywhere unless you have other constraints. It minimizes emitted byte-count while keeping depth tiny.
+
+## Construction algorithm (high-level)
+
+1. Input: N, ident naming scheme & base-case max `B` (e.g. B ≤ 64 or whichever small macro size you will implement directly).
+2. Partition indices (1..N) into 3 nearly equal blocks (V_1,V_2,V_3). (Use floor/ceil to distribute evenly.)
+3. Emit a macro `areuniq_N(a1,...,aN)` defined as:
+
+   ```
+   areuniq_N(...) = areuniq_{|C12|}( args for indices in C12 )
+                 * areuniq_{|C13|}( args for indices in C13 )
+                 * areuniq_{|C23|}( args for indices in C23 )
+   ```
+
+   where `Cij = Vi ∪ Vj`.
+
+4. Recurse inside each `areuniq_M` until `M <= B` and emit a concrete base macro that directly multiplies the B(B-1)/2 differences (or uses your triangular helper code if you prefer).
+5. When constructing the call sites, use your `ident(n)` generator to produce stable parameter names and keep parameter order consistent (so helper macros can be reused).
+
+This gives a 3-ary recursion tree. Calls are regular and parameter slicing is mechanical.
+
+## Example: N = 9 (concrete)
+
+Partition 9 into V1={1,2,3}, V2={4,5,6}, V3={7,8,9}.
+
+Top-level:
+
+```
+areuniq9(a1..a9) =
+  areuniq6( a1,a2,a3, a4,a5,a6 )   // C12
+* areuniq6( a1,a2,a3, a7,a8,a9 )   // C13
+* areuniq6( a4,a5,a6, a7,a8,a9 )   // C23
+```
+
+Then `areuniq6` recurses the same way until base `areuniq_B` are expanded into explicit factors.
+
+Note: pairs like (a1,a4) appear in `areuniq6` C12 and (a1,a7) in C13 etc. Some pairs can appear multiple times; that is acceptable.
+
+## Implementation plan (practical)
+
+1. **Generator script** (Python recommended)
+   - Inputs: `max_N`, `base_B`, `k` (default 3), `ident_charset` rules, output header path.
+   - Produces a single header `areuniq_generated.h` with:
+     - `ident(n)` function used to name macro parameters inside emitted macros.
+     - Base-case macros `AREUNIQ_B` for `B <= base_B`. (Base_B chosen to keep direct expansion manageable and under compiler macro-param limits.)
+     - Recursive macros `AREUNIQ_m` for each m that is produced by recursion up to `max_N`.
+
+   - The script slices parameter lists deterministically so helper macros are reusable.
+   - Option: emit `uniqenumN` wrappers that place the enum body then call the `AREUNIQ_N` static assert.
+
+2. **Macro naming conventions**
+   - `AREUNIQ_N(...)` uppercase for generated macros.
+   - `AREUNIQ_B_BASE(...)` for base-case direct expansion.
+   - Keep a small constant prefix to avoid collisions.
+
+3. **Parameter ordering**
+   - Keep parameters in natural order by index. For `Cij = Vi ∪ Vj`, parameters are listed `Vi` then `Vj`. This keeps sharing high across macros and makes emitted calls compact (shared prefixes in a textual minifier).
+
+4. **Base case**
+   - For `M <= base_B` expand directly either
+     - as product of `(a_i - a_j)` for all i<j, or
+     - use your triangular helper macros to compress the row product if you already have those small helpers.
+
+   - Choose base_B so that direct expansion fits within compiler macro-argument and source-file size limits. `base_B = 16` or `32` is a conservative default; you can raise it if CI proves fine.
+
+5. **Minification and token-count**
+   - The generator can produce a compact, token-minified output (no whitespace, short macro names) for production headers used in builds. Development output can be pretty printed.
+
+6. **Integration into uniqenum**
+   - `uniqenumN(...)` expands to `enum ... { ... }` followed immediately by `_Static_assert(AREUNIQ_N(...), "uniqenum: duplicate")`.
+   - Provide both `uniqenumN` and `AREUNIQ_N` exported. This preserves the two-stage API (plain enum + manual assert) and the shorthand `uniqenumN`.
+
+7. **Tests**
+   - Unit tests: small N values compile and fail correctly on intentional duplicates.
+   - Stress tests: generate 10k-100k small headers and test compile-time usage to ensure macro-parameter limits and preprocessor time are acceptable.
+
+## Complexity and resource expectations
+
+- For k=3 recursion:
+  - Top-level emitted parameter count per level = ((k-1)N = 2N) tokens representing identifiers. The total emitted identifiers across the whole recursion tree is roughly (O(N \* \text{depth})) but depth ≈ 35 for 1e6 so worst-case emitted tokens ≈ (70N) ident tokens if you literalize everything. In reality your generator will reuse helpers and `base_B`, so emitted file size will be far smaller.
+
+- Preprocessor limits:
+  - C compilers have limits on macro argument count and macro expansion depth. Keep `base_B` small to avoid giant immediate macros. The recursion keeps any single macro's parameter count bounded by `N` only at top-level call site, which is unavoidable if you want `AREUNIQ_N(a1..aN)` syntax. If N itself is huge (1e6), that single call will be enormous and likely hit compiler limits. Practical constraint: avoid requiring a single macro with 1e6 parameters. Instead require the user to break calls into chunks or provide a wrapper that generates the call site with generated identifier lists. (The generator can also emit a special `AREUNIQ_1e6` that has fewer parameters by shifting some grouping into nested macros so top-level call sites remain manageable.)
+  - Recommendation: set a practical cap on `max_N` for a single macro call (e.g. 65535 or the compiler’s limit). For larger semantic N, provide a different API that uses multiple `_Static_assert` calls across grouped enum fragments.
+
+## Practical recommendations (defaults)
+
+- Use k = 3 everywhere. It is cost-optimal (2N) and depth is tiny for N ≤ 1e6.
+- Choose `base_B = 16` or 32 for direct expansion.
+- Emit both human-readable and minified header variants. Use minified in production builds.
+- Build a small CLI that produces the header on demand. Do not hand-write big macros.
+
+## Example generator pseudo-code (skeleton)
+
+```python
+def emit_areuniq(n):
+    if n <= BASE_B:
+        emit_base_macro(n)
+        return
+    v1, v2, v3 = split_three(n)
+    # C12 indices: [0..v1+v2-1], etc
+    emit_macro_header(n)
+    emit("AREUNIQ_%d(...)= AREUNIQ_%d(args for C12) * AREUNIQ_%d(args for C13) * AREUNIQ_%d(args for C23)" %
+         (n, v1+v2, v1+v3, v2+v3))
+    emit_macro_footer(n)
+    emit_areuniq(v1+v2); emit_areuniq(v1+v3); emit_areuniq(v2+v3)
+```
+
+Parameter naming uses your `ident(i)` for stable short identifiers.
+
+## Edge cases and notes
+
+- For very small N (2,3) provide trivial macros.
+- If the user needs the _exact_ Vandermonde product (no duplicated factors) for some reason, this method does not give uniqueness of multiplicity. But for `_Static_assert(areuniq)`, multiplicity is irrelevant.
+- Compiler preprocessor time may still be nontrivial. Test build times. Use minified output to trim parse time.
+- If target compilers enforce low macro parameter count, split your `uniqenum` API so that the user supplies smaller groups. The generator can then produce glue macros that combine groups.
+
+## Final short checklist to implement
+
+1. Write Python generator implementing k=3 recursion and your `ident` naming.
+2. Choose base_B and implement base-case expansion.
+3. Emit `AREUNIQ_*` macros up to requested `max_N` and wrappers `uniqenum*`.
+4. Add tests for correctness and performance.
+5. Ship minified header and readable header.
+
+If you want I will:
+
+- produce the Python generator (ready-to-run) that emits `AREUNIQ_n` up to a chosen `max_N` with k=3 and `base_B=16`, or
+- produce a worked-out, fully expanded sample header for `N=256` showing macro definitions and one example `uniqenum256` usage.
+
+Which of those do you want next?
