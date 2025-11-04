@@ -4,11 +4,9 @@ import { GenerationMethod, type UniqenumSpec } from "./types.js";
 import type { CodeWriter } from "./writer.js";
 
 export function generateUniqenum(spec: Readonly<UniqenumSpec>, writer: CodeWriter): void {
-    const recursor = new AlwaysAlgortihm(GenerationMethod.Expanded);
     const generator = new C11CodeGenerator();
-    writer.addCode(generator.generateMacro1());
-    for (let n = 2; n <= spec.N; ++n) {
-        writer.addCode(generator.generateMacro(recursor.getRercursionMethod(n), n));
+    for (let n = 1; n <= spec.N; ++n) {
+        writer.addCode(generator.uniqenum(n));
     }
     writer.flush();
 }

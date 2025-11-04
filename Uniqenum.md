@@ -442,47 +442,45 @@ General Note: we should use `a!=b` instead of `a-b`. Longer, but avoid overflow 
 
 Accepted. I’ll continue the document. Short, formal, implementation-ready.
 
-# Graph / clique approach — continuation
+### Summary of the idea (one sentence)
 
-## Summary of the idea (one sentence)
+Represent the Vandermonde `v_N = ∏_{i<j} (a_i - a_j)` as a product of Vandermonde factors on smaller vertex subsets by covering the complete graph $K_N$ with smaller cliques. If every unordered pair ${i,j}$ is contained in at least one chosen clique, the product of Vandermonde determinants for those cliques is zero exactly when some pair is equal. Multiplicity of factors is allowed.
 
-Represent the Vandermonde `v_N = ∏_{i<j} (a_i - a_j)` as a product of Vandermonde factors on smaller vertex subsets by covering the complete graph (K_N) with smaller cliques. If every unordered pair ({i,j}) is contained in at least one chosen clique, the product of Vandermonde determinants for those cliques is zero exactly when some pair is equal. Multiplicity of factors is allowed.
+### Why this fixes the problems
 
-## Why this fixes the problems you had
-
-- **Removes quadratic expansion**. We never emit every (\binom{N}{2}) pair. We emit Vandermonde on smaller subsets and multiply them.
+- **Removes quadratic expansion**. We never emit every $\binom{N}{2}$ pair. We emit Vandermonde on smaller subsets and multiply them.
 - **Cost / depth tradeoff is explicit**. A balanced k-partition at each level yields a simple analytic cost factor and a simple depth recurrence. This lets you pick k to meet depth D while minimizing emitted token count.
 - **Keeps semantics**. Multiplying factors multiple times does not change the zero/non-zero property used by `_Static_assert`.
 - **Generatable**. The structure is regular. A code generator (Python) can emit the macro tree automatically using the ident scheme you already designed.
 
-## Math: cost and depth for k-partitions
+### Math: cost and depth for k-partitions
 
-Partition (V) into (k) nearly-equal parts (V*1..V_k). Take one clique for each unordered pair (i<j): (C*{ij}=V_i\cup V_j).
+Partition $V$ into $k$ nearly-equal parts $V*1..V_k$. Take one clique for each unordered pair $i<j$: $C*{ij}=V_i\cup V_j$.
 
-- Number of cliques: (\binom{k}{2}).
-- Each clique size ≈ (2n/k).
-- Top-level cost factor (= \frac{\sum |C\_{ij}|}{n} \approx (k-1)). (Derivation: each part appears in (k-1) of the unions, so total = ((k-1)n).)
-- Depth recurrence: (\text{depth}(n) \le 1 + \text{depth}(\lceil 2n/k \rceil)).
+- Number of cliques: $\binom{k}{2}$.
+- Each clique size ≈ $2n/k$.
+- Top-level cost factor $= \frac{\sum |C\_{ij}|}{n} \approx (k-1)$. (Derivation: each part appears in (k-1) of the unions, so total = ((k-1)n).)
+- Depth recurrence: $\text{depth}(n) \le 1 + \text{depth}(\lceil 2n/k \rceil)$.
 
 Tradeoff:
 
-- Larger k increases cost linearly (factor (k-1)).
+- Larger k increases cost linearly (factor $k-1$).
 - Larger k decreases depth (smaller child size).
-- k must be (\ge 3) to avoid producing full-size clique.
+- k must be $\ge 3$ to avoid producing full-size clique.
 
 ### Practical choices for N ≤ 1e6 and D = 200
 
-- k = 3 gives cost factor (=2) (optimal (2N)) and depth ~ (\log\_{3/2} N). For (N=10^6) depth ≈ 35. Well below 200.
-- k = 4 gives factor (=3) and depth ~ (\log_2 N) (~20).
+- k = 3 gives cost factor $=2$ (optimal $2N$) and depth ~ $\log\_{3/2} N$. For $N=10^6$ depth ≈ 35. Well below 200.
+- k = 4 gives factor $=3$ and depth ~ $\log_2 N$ (~20).
 - Therefore pick k = 3 everywhere unless you have other constraints. It minimizes emitted byte-count while keeping depth tiny.
 
-## Construction algorithm (high-level)
+### Construction algorithm (high-level)
 
 1. Input: N, ident naming scheme & base-case max `B` (e.g. B ≤ 64 or whichever small macro size you will implement directly).
-2. Partition indices (1..N) into 3 nearly equal blocks (V_1,V_2,V_3). (Use floor/ceil to distribute evenly.)
+2. Partition indices $1..N$ into 3 nearly equal blocks $V_1,V_2,V_3$. (Use floor/ceil to distribute evenly.)
 3. Emit a macro `areuniq_N(a1,...,aN)` defined as:
 
-   ```
+   ```c
    areuniq_N(...) = areuniq_{|C12|}( args for indices in C12 )
                  * areuniq_{|C13|}( args for indices in C13 )
                  * areuniq_{|C23|}( args for indices in C23 )
@@ -495,13 +493,13 @@ Tradeoff:
 
 This gives a 3-ary recursion tree. Calls are regular and parameter slicing is mechanical.
 
-## Example: N = 9 (concrete)
+### Example: N = 9 (concrete)
 
 Partition 9 into V1={1,2,3}, V2={4,5,6}, V3={7,8,9}.
 
 Top-level:
 
-```
+```c
 areuniq9(a1..a9) =
   areuniq6( a1,a2,a3, a4,a5,a6 )   // C12
 * areuniq6( a1,a2,a3, a7,a8,a9 )   // C13
@@ -512,7 +510,7 @@ Then `areuniq6` recurses the same way until base `areuniq_B` are expanded into e
 
 Note: pairs like (a1,a4) appear in `areuniq6` C12 and (a1,a7) in C13 etc. Some pairs can appear multiple times; that is acceptable.
 
-## Implementation plan (practical)
+### Implementation plan (practical)
 
 1. **Generator script** (Python recommended)
    - Inputs: `max_N`, `base_B`, `k` (default 3), `ident_charset` rules, output header path.
@@ -550,23 +548,23 @@ Note: pairs like (a1,a4) appear in `areuniq6` C12 and (a1,a7) in C13 etc. Some p
    - Unit tests: small N values compile and fail correctly on intentional duplicates.
    - Stress tests: generate 10k-100k small headers and test compile-time usage to ensure macro-parameter limits and preprocessor time are acceptable.
 
-## Complexity and resource expectations
+### Complexity and resource expectations
 
 - For k=3 recursion:
-  - Top-level emitted parameter count per level = ((k-1)N = 2N) tokens representing identifiers. The total emitted identifiers across the whole recursion tree is roughly (O(N \* \text{depth})) but depth ≈ 35 for 1e6 so worst-case emitted tokens ≈ (70N) ident tokens if you literalize everything. In reality your generator will reuse helpers and `base_B`, so emitted file size will be far smaller.
+  - Top-level emitted parameter count per level = $(k-1)N = 2N$ tokens representing identifiers. The total emitted identifiers across the whole recursion tree is roughly $O(N \* \text{depth})$ but depth ≈ 35 for 1e6 so worst-case emitted tokens ≈ $70N$ ident tokens if you literalize everything. In reality your generator will reuse helpers and `base_B`, so emitted file size will be far smaller.
 
 - Preprocessor limits:
-  - C compilers have limits on macro argument count and macro expansion depth. Keep `base_B` small to avoid giant immediate macros. The recursion keeps any single macro's parameter count bounded by `N` only at top-level call site, which is unavoidable if you want `AREUNIQ_N(a1..aN)` syntax. If N itself is huge (1e6), that single call will be enormous and likely hit compiler limits. Practical constraint: avoid requiring a single macro with 1e6 parameters. Instead require the user to break calls into chunks or provide a wrapper that generates the call site with generated identifier lists. (The generator can also emit a special `AREUNIQ_1e6` that has fewer parameters by shifting some grouping into nested macros so top-level call sites remain manageable.)
+  - C compilers have limits on macro argument count and macro expansion depth. Keep `base_B` small to avoid giant immediate macros. The recursion keeps any single macro's parameter count bounded by `N` only at top-level call site, which is unavoidable if you want `AREUNIQ_N(a1..aN)` syntax. If N itself is huge $1e6$, that single call will be enormous and likely hit compiler limits. Practical constraint: avoid requiring a single macro with 1e6 parameters. Instead require the user to break calls into chunks or provide a wrapper that generates the call site with generated identifier lists. (The generator can also emit a special `AREUNIQ_1e6` that has fewer parameters by shifting some grouping into nested macros so top-level call sites remain manageable.)
   - Recommendation: set a practical cap on `max_N` for a single macro call (e.g. 65535 or the compiler’s limit). For larger semantic N, provide a different API that uses multiple `_Static_assert` calls across grouped enum fragments.
 
-## Practical recommendations (defaults)
+### Practical recommendations (defaults)
 
-- Use k = 3 everywhere. It is cost-optimal (2N) and depth is tiny for N ≤ 1e6.
+- Use k = 3 everywhere. It is cost-optimal $2N$ and depth is tiny for N ≤ 1e6.
 - Choose `base_B = 16` or 32 for direct expansion.
 - Emit both human-readable and minified header variants. Use minified in production builds.
 - Build a small CLI that produces the header on demand. Do not hand-write big macros.
 
-## Example generator pseudo-code (skeleton)
+### Example generator pseudo-code (skeleton)
 
 ```python
 def emit_areuniq(n):
@@ -584,24 +582,17 @@ def emit_areuniq(n):
 
 Parameter naming uses your `ident(i)` for stable short identifiers.
 
-## Edge cases and notes
+### Edge cases and notes
 
 - For very small N (2,3) provide trivial macros.
-- If the user needs the _exact_ Vandermonde product (no duplicated factors) for some reason, this method does not give uniqueness of multiplicity. But for `_Static_assert(areuniq)`, multiplicity is irrelevant.
+- If the user needs the *exact* Vandermonde product (no duplicated factors) for some reason, this method does not give uniqueness of multiplicity. But for `_Static_assert(areuniq)`, multiplicity is irrelevant.
 - Compiler preprocessor time may still be nontrivial. Test build times. Use minified output to trim parse time.
 - If target compilers enforce low macro parameter count, split your `uniqenum` API so that the user supplies smaller groups. The generator can then produce glue macros that combine groups.
 
-## Final short checklist to implement
+### Final short checklist to implement
 
 1. Write Python generator implementing k=3 recursion and your `ident` naming.
 2. Choose base_B and implement base-case expansion.
 3. Emit `AREUNIQ_*` macros up to requested `max_N` and wrappers `uniqenum*`.
 4. Add tests for correctness and performance.
 5. Ship minified header and readable header.
-
-If you want I will:
-
-- produce the Python generator (ready-to-run) that emits `AREUNIQ_n` up to a chosen `max_N` with k=3 and `base_B=16`, or
-- produce a worked-out, fully expanded sample header for `N=256` showing macro definitions and one example `uniqenum256` usage.
-
-Which of those do you want next?
