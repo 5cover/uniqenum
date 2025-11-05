@@ -73,3 +73,7 @@ export function* combinations(n: number): Generator<[number, number], void, void
         }
     }
 }
+
+export function sequence<T>(length: number, map: (i: number) => T) {
+    return Array.from({length}, (_, i) => map(i));
+}

@@ -287,7 +287,7 @@ async function identLengthDemonstration() {
     const rl = readline.createInterface(stdin);
     while (true) {
         console.table(
-            Array.from({ length: N }, (_, i) => {
+            u.sequence(N, i => {
                 i += n;
                 const d = u.ident(i);
                 return { i, ident: d, length: d.length, approx: pctfmt(d.length, Math.ceil(Math.log(31 * (i + 1) / 26) / LN63)) };

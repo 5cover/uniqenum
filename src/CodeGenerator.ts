@@ -1,5 +1,13 @@
 import { GenerationMethod } from './types.js';
-import { combinations, ident } from './util.js';
+import { combinations, ident, sequence } from './util.js';
+
+function nameMacroAreuniq(n: number) {
+    return `arenuiq${n}`
+}
+
+function nameMacroUniqenum(n: number) {
+    return `uniqenum${n}`
+}
 
 export interface CodeGenerator {
     uniqenum(n: number): string;
@@ -11,13 +19,13 @@ export class C11CodeGenerator implements CodeGenerator {
         return '';
     }
     uniqenum(n: number) {
-        const params = Array.from({ length: 2 * n }, (_, i) => ident(Math.trunc(i / 2) + +!(i % 2) * n)).join(',');
+        const params = sequence(2 * n, i => ident(Math.trunc(i / 2) + +!(i % 2) * n)).join(',');
         const pName = ident(2 * n + 1);
         const pType = ident(2 * n + 2);
-        const body = Array.from({ length: n }, (_, i) => `${ident(n + i)}=(${ident(i)})`).join(',');
-        const values = Array.from({ length: n }, (_, i) => ident(i)).join(',');
-        // todo: prevent or account for ident returning "enum", "_Static_assert" or "areuniq"
-        return `#define uniqenum${n}(${pName},${params},${pType})enum ${pName}{${body}}${pType};_Static_assert(areuniq(${values}),"duplicate enum values")\n`;
+        const body = sequence(n, i => `${ident(n + i)}=(${ident(i)})`).join(',');
+        const values = sequence(n, i => ident(i)).join(',');
+        // todo: prevent or account for ident returning nameMacroAreuniq(n), "enum", "_Static_assert"
+        return `#define ${nameMacroUniqenum(n)}(${pName},${params},${pType})enum ${pName}{${body}}${pType};_Static_assert(${nameMacroAreuniq(n)}(${values}),"duplicate enum values")\n`;
     }
 }
 
@@ -25,7 +33,7 @@ function partition_cliques(n: number) {
     // split graph in k parts of size (node count) n / K + +(i < n % k), i being the subgraph number (the +() parrt allows to account for when n % k != 0)
     const k = 3;
     if (n < k) {
-        throw new Error('n must be greater than K. use a base case.')
+        throw new Error('n must be greater than K. use a base case.');
     }
     const basesize = Math.trunc(n / k);
 
@@ -39,12 +47,8 @@ function partition_cliques(n: number) {
         const iStartOffset = iStart * basesize + Math.min(iStart, n % k);
         const iEndOffset = iEnd * basesize + Math.min(iEnd, n % k);
         subcliques.push([
-            ...Array.from({ length: basesize + +(iStart < n % k)}, (_, i) => {
-                return iStartOffset + i;
-            }),
-            ...Array.from({ length: basesize + +(iEnd < n % k) }, (_, i) => {
-                return iEndOffset + i;
-            })
+            ...sequence(basesize + +(iStart < n % k), i => iStartOffset + i),
+            ...sequence(basesize + +(iEnd < n % k), i => iEndOffset + i),
         ]);
     }
 
