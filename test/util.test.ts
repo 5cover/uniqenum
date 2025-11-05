@@ -13,6 +13,46 @@ describe('util module', () => {
             [1, 2],
         ]);
     });
+
+    it('skips banned ident', () => {
+        const ident = u.fnIdentSkip(new Set<string>().add('c'));
+        const expected = ['a', 'b', 'd', 'e'];
+        assert.deepEqual(
+            u.sequence(expected.length, i => ident(i)),
+            expected
+        );
+        assert.deepEqual(
+            u.sequence(expected.length, i => ident(expected.length - i - 1)),
+            expected.reverse()
+        );
+    });
+
+    it('skips banned ide>nts', () => {
+        const ident = u.fnIdentSkip(new Set<string>().add('a').add('c').add('d'));
+        const expected = ['b', 'e', 'f', 'g'];
+        assert.deepEqual(
+            u.sequence(expected.length, i => ident(i)),
+            expected
+        );
+        assert.deepEqual(
+            u.sequence(expected.length, i => ident(expected.length - i - 1)),
+            expected.reverse()
+        );
+    });
+
+    it('skips more banned idents', () => {
+        const ident = u.fnIdentSkip(new Set<string>().add('b').add('c').add('d').add('e'));
+        const expected = ['a', 'f', 'g', 'h'];
+        assert.deepEqual(
+            u.sequence(expected.length, i => ident(i)),
+            expected
+        );
+        assert.deepEqual(
+            u.sequence(expected.length, i => ident(expected.length - i - 1)),
+            expected.reverse()
+        );
+    });
+
     it('creates identifiers', () => {
         const expected = [
             'a',
@@ -290,7 +330,12 @@ async function identLengthDemonstration() {
             u.sequence(N, i => {
                 i += n;
                 const d = u.ident(i);
-                return { i, ident: d, length: d.length, approx: pctfmt(d.length, Math.ceil(Math.log(31 * (i + 1) / 26) / LN63)) };
+                return {
+                    i,
+                    ident: d,
+                    length: d.length,
+                    approx: pctfmt(d.length, Math.ceil(Math.log((31 * (i + 1)) / 26) / LN63)),
+                };
             }),
             ['i', 'ident', 'length', 'approx']
         );
@@ -302,5 +347,3 @@ async function identLengthDemonstration() {
         return target === x ? x : `${x} (${x > target ? '+' : ''}${(100 * (x - target)) / target}%)`;
     }
 }
-
-await identLengthDemonstration();

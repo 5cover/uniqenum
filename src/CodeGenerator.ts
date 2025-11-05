@@ -1,12 +1,15 @@
 import { GenerationMethod } from './types.js';
-import { combinations, ident, sequence } from './util.js';
+import { combinations, sequence, fnIdentSkip } from './util.js';
+
+// todo: prevent or account for ident returning nameMacroAreuniq(n), "enum", "_Static_assert"
+const bannedIdents = new Set<string>().add('enum').add('_Static_assert');
 
 function nameMacroAreuniq(n: number) {
-    return `arenuiq${n}`
+    return `arenuiq${n}`;
 }
 
 function nameMacroUniqenum(n: number) {
-    return `uniqenum${n}`
+    return `uniqenum${n}`;
 }
 
 export interface CodeGenerator {
@@ -19,12 +22,18 @@ export class C11CodeGenerator implements CodeGenerator {
         return '';
     }
     uniqenum(n: number) {
+        const nameUniqenum = nameMacroUniqenum(n);
+        const nameAreuniq = nameMacroAreuniq(n);
+        const ident = fnIdentSkip(bannedIdents.add(nameUniqenum).add(nameAreuniq));
+
         const params = sequence(2 * n, i => ident(Math.trunc(i / 2) + +!(i % 2) * n)).join(',');
         const pName = ident(2 * n + 1);
         const pType = ident(2 * n + 2);
         const body = sequence(n, i => `${ident(n + i)}=(${ident(i)})`).join(',');
         const values = sequence(n, i => ident(i)).join(',');
-        // todo: prevent or account for ident returning nameMacroAreuniq(n), "enum", "_Static_assert"
+
+        bannedIdents.delete(nameUniqenum);
+        bannedIdents.delete(nameAreuniq);
         return `#define ${nameMacroUniqenum(n)}(${pName},${params},${pType})enum ${pName}{${body}}${pType};_Static_assert(${nameMacroAreuniq(n)}(${values}),"duplicate enum values")\n`;
     }
 }

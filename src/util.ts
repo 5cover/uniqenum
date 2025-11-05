@@ -14,6 +14,43 @@ function buildCharMap(offsetOrChar: number | string, iStart: number, iEnd: numbe
     }
 }
 
+class SkipMap {
+    constructor(private readonly bannedIdents: ReadonlySet<string>) {}
+
+    sortedSkips: number[] = [];
+
+    ident(i: number) {
+        const offset = this.offset(i);
+        let s = ident(i + offset);
+        while (this.bannedIdents.has(s)) {
+            this.sortedSkips.splice(offset, 0, i);
+            s = ident(++i + offset);
+        }
+        return s;
+    }
+
+    private offset(i: number): number {
+        let low = 0,
+            high = this.sortedSkips.length;
+        while (low < high) {
+            const mid = (low + high) >>> 1;
+            if (this.sortedSkips[mid]! <= i) low = mid + 1;
+            else high = mid;
+        }
+        return low;
+    }
+}
+
+/**
+ * Create a callable ident function that skips some identifiers, getting the next valid one.
+ */
+export function fnIdentSkip(banned: ReadonlySet<string>) {
+    const instance = new SkipMap(banned);
+    const fn = instance.ident satisfies typeof ident as typeof ident & SkipMap;
+    Object.setPrototypeOf(fn, SkipMap.prototype);
+    return Object.assign(fn, instance);
+}
+
 /**
  * Bijective function that encodes an integer as a valid C identifier.
  * It may return a keyword. Skipping not implemented as macor parameters may be keywords since the C parser doesn't see them, only the preprocessor.
@@ -55,7 +92,7 @@ function buildIdent(i: number): string {
     let rest = rem % B ** (L - 1);
 
     let s = '';
-
+    ('${workspaceFolder}/src/cli.ts');
     for (let pos = 0; pos < L - 1; ++pos) {
         const power = B ** (L - 2 - pos);
         const d = Math.trunc(rest / power);
@@ -75,5 +112,5 @@ export function* combinations(n: number): Generator<[number, number], void, void
 }
 
 export function sequence<T>(length: number, map: (i: number) => T) {
-    return Array.from({length}, (_, i) => map(i));
+    return Array.from({ length }, (_, i) => map(i));
 }
