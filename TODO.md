@@ -1,11 +1,38 @@
 # TODO
 
+## generation methods
+
+name|description|depth|dependencies|code size (number of parameters spelled)|helper macros required
+-|-|-|-|-|-
+expanded|product of all unsorted pair differences|1||2$\binom{N}{2}$
+row|add a row to the right triangle: $v_{N-1} \times \prod_{i=1}^{N-1}(a_i - a_N)$|$N - 1$|$N - 1$|best: $2N-1$, worst: $3N-2$|some; for the last row
+cliques ($k=3$)|represent pairs as complete graphs edges; split into $k$ subgraphs|$\lceil\log_{k/2}N\rceil$|$\lfloor\frac{2N}{K}\rfloor$, $\lceil\frac{2N}{K}\rceil$|$kN-N$
+triangle|split into middle square or near-rectangle and 2 half as big right triangles|$\lceil\log_2N\rceil$|$\lfloor\frac{N}{2}\rfloor$, $\lceil\frac{N}{2}\rceil$|best: $2N$, worst: $N+\lfloor\frac{N²}{2}\rfloor$|a lot: for the middle square
+
+Cliques is the best method.
+
 ## Generator
 
-- Reimplement the whole thing in Node TypeScript
-- use modern conventions and a focused CLI and API for generating the code
-- provide downloadable pre-generated files in the repo.
-- avoid scope creep: no generator abstraction yet, keep MVP: focus on the actual generation logic for now instead of everything around it.
+- [x] Reimplement the whole thing in Node TypeScript
+- [x] use modern conventions and a focused CLI and API for generating the code
+- [ ] provide downloadable pre-generated files in the repo.
+- [ ] reimplement row recursion with heuristically generated (a-g)(b-g)... shared helpers (pay for the fewest macros that bring the most benefit in our N range)
+- [ ] todo: when using ident names: make sure we add defined macro names to the ident banlist where needed
+- [ ] optimize performance (currently v8 crashes for N too big, fearing oom), allow splitting output in files of defined size or inline generation, better
+  - [ ] new cli: keep seq-like N, provide options:
+  - [ ] `-s,--split <file-size>`: enable generation of split files. specify a max file size. generates split headers by grouping dependencies, only one include per header to form a tree sharing common $\lceil2N/3\rceil$ dependencies, minimizing preprocessor overhead
+  - [ ] `-o,--output <path>`: define output dir/file. if absent, outputs to stdout. if splitting, treated as a directory, and files are created inside of it. if not splitting but path already exists as a directory, a single split file is created inside of it (cp-like behavior)
+  - [ ] `--only`: skips checking for missing dependencies not covered by the requested N range (we'll have to implement that. basically if someone asks for N=100, clique method requires areuniq67 -- should it be implemented?)
+    - without --only: implement all dependencies (recursively) using the most efficient method available, as normal
+    - with --only: do not implement dependencies, but pretend they are here
+- validate idents?
+- [ ] API with more options than the CLI (cli doesn't provide string formatting option, it keeps the defaults)
+  - split
+  - output
+  - name.areuniq(n) -> ident name for the `areuniq` macro
+  - name.uniqenum(n) -> ident name for the `uniqenum` macro
+  - uniqAssertionMsg(n) -> code for a C string literal for the static assertion message in `uniqenum`. not a string, because the user may want to concat enum name, type, keys and values. maybe we provide them an object to get access to the underlying ident parameters easily
+- [ ] tooling that refactors regular enums in a code base into uniqenums automatically. skips auto initializer only enums, and asks in the console for each enum about the unique patterns (full/partial uniqueness)
 
 ## Paper
 

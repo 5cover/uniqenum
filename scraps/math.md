@@ -138,7 +138,6 @@ N=10:
 (a-g)(b-g)(c-g)(d-g)(e-g)(f-g)
 (a-h)(b-h)(c-h)(d-h)(e-h)(f-h)(g-h)
 (a-i)(b-i)(c-i)(d-i)(e-i)(f-i)(g-i)(h-i)
-(a-j)(b-j)(c-j)(d-j)(e-j)(f-j)(g-j)(h-j)(i-j)
 ```
 
 ## mirroring a right triangle

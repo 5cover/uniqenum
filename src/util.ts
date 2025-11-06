@@ -35,7 +35,6 @@ export function scopedIdentFn(scope: Iterable<string> = []): typeof ident {
 export function ident(i: number): string {
     const cached = identCache.get(i);
     if (cached !== undefined) return cached;
-    // todo: see if the effective pattern of ident(i) is compatible with the cache strategy
     const s = pureIdent(i);
     if (identCache.size <= MaxCacheSize) identCache.set(i, s);
     return s;

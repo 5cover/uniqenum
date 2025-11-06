@@ -1,5 +1,3 @@
-// todo: commander cli
-
 import { program } from '@commander-js/extra-typings';
 import { StreamWriter, type CodeWriter } from './writer.js';
 import { C11CodeGenerator, type CodeConfigNames } from './CodeGenerator.js';
@@ -39,7 +37,6 @@ function generateUniqenum(spec: Readonly<UniqenumSpec>, writer: CodeWriter): voi
         uniqenum: n => `uniqenum${n}`,
     };
 
-    // todo: when using ident names: make sure we add defined macro names to the ident banlist where needed
     const identNames: CodeConfigNames = {
         areuniq: ident,
         uniqenum: ident,
@@ -50,7 +47,7 @@ function generateUniqenum(spec: Readonly<UniqenumSpec>, writer: CodeWriter): voi
     for (let n = spec.N.start; n <= spec.N.end; n += spec.N.step) {
         let m;
         if (null !== (m = generator.areuniq(n))) writer.addCode(m);
-        if (null !== (m = generator.uniqenum(n))) writer.addCode(m);
+        //if (null !== (m = generator.uniqenum(n))) writer.addCode(m);
     }
     writer.flush();
 }
