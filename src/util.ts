@@ -1,54 +1,31 @@
 const MaxCacheSize = 16384;
 const identCache = new Map<number, string>();
-const chars = new Map<number, string>();
 
+const n2char = new Map<number, string>();
+const char2n = new Map<string, number>();
+const F = 52; // letters
+const B = 63; // letters + _ + digits
 buildCharMap(97, 0, 26); // lower letters
 buildCharMap(39, 26, 52); // upper letters
 buildCharMap('_', 52);
 buildCharMap(-4, 53, 62); // digits 1-9
 buildCharMap('0', 62);
 
-function buildCharMap(offsetOrChar: number | string, iStart: number, iEnd: number = iStart + 1) {
-    for (let i = iStart; i < iEnd; ++i) {
-        chars.set(i, typeof offsetOrChar === 'string' ? offsetOrChar : String.fromCharCode(offsetOrChar + i));
-    }
-}
-
-class SkipMap {
-    constructor(private readonly bannedIdents: ReadonlySet<string>) {}
-
-    sortedSkips: number[] = [];
-
-    ident(i: number) {
-        const offset = this.offset(i);
-        let s = ident(i + offset);
-        while (this.bannedIdents.has(s)) {
-            this.sortedSkips.splice(offset, 0, i);
-            s = ident(++i + offset);
-        }
-        return s;
-    }
-
-    private offset(i: number): number {
+/**
+ * Create a callable ident function that skips some identifiers to avoid shadowing a scope, getting the next valid one.
+ */
+export function scopedIdentFn(scope: Iterable<string> = []): typeof ident {
+    const sortedSkips = Array.from(scope, identAntecedent).filter(i => i !== null).sort((a, b) => a - b);
+    return i => {
         let low = 0,
-            high = this.sortedSkips.length;
+            high = sortedSkips.length;
         while (low < high) {
             const mid = (low + high) >>> 1;
-            if (this.sortedSkips[mid]! <= i) low = mid + 1;
+            if (sortedSkips[mid]! <= i) low = mid + 1;
             else high = mid;
         }
-        return low;
+        return ident(i + low);
     }
-}
-
-/**
- * Create a callable ident function that skips some identifiers, getting the next valid one.
- */
-export function fnIdentSkip(banned: ReadonlySet<string>) {
-    const instance = new SkipMap(banned);
-    const fn = instance.ident satisfies typeof ident as typeof ident & SkipMap;
-    Object.setPrototypeOf(fn, SkipMap.prototype);
-    return Object.assign(fn, instance);
 }
 
 /**
@@ -59,15 +36,38 @@ export function ident(i: number): string {
     const cached = identCache.get(i);
     if (cached !== undefined) return cached;
     // todo: see if the effective pattern of ident(i) is compatible with the cache strategy
-    const s = buildIdent(i);
+    const s = pureIdent(i);
     if (identCache.size <= MaxCacheSize) identCache.set(i, s);
     return s;
 }
 
-function buildIdent(i: number): string {
-    const F = 52; // letters
-    const B = 63; // letters + _ + digits
+/**
+ * Inverse of ident(i). Returns the raw integer index whose image is `s`.
+ * Throws if `s` contains a character not in the alphabet.
+ * @returns a number i as ident(i)===s, or null if s is not an ident
+ */
+export function identAntecedent(s: string): number | null {
+    if (s.length === 0) return null;
 
+    const L = s.length;
+
+    const firstIdx = char2n.get(s[0]!);
+    if (firstIdx === undefined || firstIdx >= F) return null;
+
+    let value = 0;
+    for (let pos = 1; pos < L; ++pos) {
+        const idx = char2n.get(s[pos]!);
+        if (idx === undefined) return null;
+        value = value * B + idx;
+    }
+
+    // number of identifiers with shorter length
+    const base = (F * (B ** (L - 1) - 1)) / (B - 1);
+
+    return base + firstIdx * B ** (L - 1) + value;
+}
+
+function pureIdent(i: number): string {
     if (i < 0) {
         throw Error(`i must be >= 0, got ${i}`);
     }
@@ -85,32 +85,43 @@ function buildIdent(i: number): string {
     }
 
     if (L === 1) {
-        return chars.get(rem)!;
+        return n2char.get(rem)!;
     }
 
     const first_idx = Math.trunc(rem / B ** (L - 1));
     let rest = rem % B ** (L - 1);
 
     let s = '';
-    ('${workspaceFolder}/src/cli.ts');
     for (let pos = 0; pos < L - 1; ++pos) {
         const power = B ** (L - 2 - pos);
         const d = Math.trunc(rest / power);
         rest %= power;
-        s += chars.get(d);
+        s += n2char.get(d);
     }
 
-    return chars.get(first_idx)! + s;
+    return n2char.get(first_idx)! + s;
 }
 
-export function* combinations(n: number): Generator<[number, number], void, void> {
-    for (let i = 0; i < n; ++i) {
-        for (let j = i + 1; j < n; ++j) {
-            yield [i, j];
-        }
+function buildCharMap(offsetOrChar: number | string, iStart: number, iEnd: number = iStart + 1) {
+    for (let i = iStart; i < iEnd; ++i) {
+        const chr = typeof offsetOrChar === 'string' ? offsetOrChar : String.fromCharCode(offsetOrChar + i);
+        n2char.set(i, chr);
+        char2n.set(chr, i);
     }
 }
 
-export function sequence<T>(length: number, map: (i: number) => T) {
-    return Array.from({ length }, (_, i) => map(i));
+/**
+ * A parseInt variant that never returns NaN and fails with null instead.
+ */
+export function safeParseInt(str: string | undefined | null): number | null {
+    if (!str) return null;
+    const n = parseInt(str);
+    return isNaN(n) ? null : n;
+}
+
+/**
+ * Throw expression
+ */
+export function throwf(err: Error): never {
+    throw err;
 }

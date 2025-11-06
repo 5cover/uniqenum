@@ -1,8 +1,14 @@
+export interface Range {
+    start: number,
+    end: number,
+    step: number
+}
+
 export interface UniqenumSpec {
     /**
-     * Maximum number of enum members to support.
+     * Range enum members amount to support. Range
      */
-    N: number;
+    N: Range;
     /**
      * Maximum macro recursive expansion depth.
      */

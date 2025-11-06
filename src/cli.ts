@@ -1,20 +1,56 @@
 // todo: commander cli
 
 import { program } from '@commander-js/extra-typings';
-import { generateUniqenum } from './generate.js';
-import { StreamWriter } from './writer.js';
+import { StreamWriter, type CodeWriter } from './writer.js';
+import { C11CodeGenerator, type CodeConfigNames } from './CodeGenerator.js';
+import type { UniqenumSpec } from './types.js';
+import { ident, safeParseInt, throwf } from './util.js';
 
 program
     .name('uniqenum')
     .description('Unique enum C meta-programming macro family.')
-    .argument('<N>')
-    .action((n) => {
+    .arguments('<Nstart> [Nstep] [Nend]')
+    .action((n1, n2, n3) => {
+        // n1 : 1 n1 1
+        // n1 n2 : n1 n2 1
+        // n1 n2 n3 : n1 n3 n2
         generateUniqenum(
             {
                 A: 127,
                 D: 200,
-                N: parseInt(String(n)),
+                N: {
+                    start: n2 ? intarg(n1) : 1,
+                    end: intarg(n3 ?? n2 ?? n1),
+                    step: n3 ? intarg(n2) : 1,
+                },
             },
-            new StreamWriter(process.stdout),
+            new StreamWriter(process.stdout)
         );
-    }).parse();
+    })
+    .parse();
+
+function intarg(arg?: string) {
+    return safeParseInt(arg) ?? throwf(new Error(`argument must be an number: ${arg}`))
+}
+
+function generateUniqenum(spec: Readonly<UniqenumSpec>, writer: CodeWriter): void {
+    const readableNames: CodeConfigNames = {
+        areuniq: n => `areuniq${n}`,
+        uniqenum: n => `uniqenum${n}`,
+    };
+
+    // todo: when using ident names: make sure we add defined macro names to the ident banlist where needed
+    const identNames: CodeConfigNames = {
+        areuniq: ident,
+        uniqenum: ident,
+    };
+    const generator = new C11CodeGenerator({
+        names: readableNames,
+    });
+    for (let n = spec.N.start; n <= spec.N.end; n += spec.N.step) {
+        let m;
+        if (null !== (m = generator.areuniq(n))) writer.addCode(m);
+        if (null !== (m = generator.uniqenum(n))) writer.addCode(m);
+    }
+    writer.flush();
+}
