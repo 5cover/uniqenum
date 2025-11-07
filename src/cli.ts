@@ -38,16 +38,17 @@ function generateUniqenum(spec: Readonly<UniqenumSpec>, writer: CodeWriter): voi
     };
 
     const identNames: CodeConfigNames = {
-        areuniq: ident,
-        uniqenum: ident,
+        areuniq: n => ident((n - 2) * 2 + 1),
+        uniqenum: n => ident((n - 1) * 2),
     };
     const generator = new C11CodeGenerator({
-        names: readableNames,
+        names: identNames,
+        uniqAssertionMsg: b => b.str("duplicate enum values: ").expr(b.name).str(" ").expr(b.type)
     });
     for (let n = spec.N.start; n <= spec.N.end; n += spec.N.step) {
         let m;
         if (null !== (m = generator.areuniq(n))) writer.addCode(m);
-        //if (null !== (m = generator.uniqenum(n))) writer.addCode(m);
+        if (null !== (m = generator.uniqenum(n))) writer.addCode(m);
     }
     writer.flush();
 }

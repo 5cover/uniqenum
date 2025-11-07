@@ -1,13 +1,74 @@
 import { scopedIdentFn, ident as pureIdent } from './util.js';
 import * as g from './g.js';
 
+/**
+ * Configurration names. It's up to you to provide unique names.
+ */
 export interface CodeConfigNames {
     areuniq: (n: number) => string;
     uniqenum: (n: number) => string;
 }
 
+export class CStringUniqAssertionMsgBuilder {
+    constructor(
+        readonly n: number,
+        readonly ident = pureIdent
+    ) {}
+    private code = '';
+    private instr = false;
+    str(str: string) {
+        if (!this.instr) {
+            this.code += '"';
+            this.instr = true;
+        }
+        this.code += str.replaceAll(/["\\]/g, '\\$&').replaceAll('\n', '\\n').replaceAll('\r', '\\r');
+        return this;
+    }
+
+    expr(expr: string) {
+        this.closeStr();
+        this.code += '#';
+        this.code += expr;
+        return this;
+    }
+
+    forEach<T>(items: Iterable<T>, $do: (builder: this, item: T) => unknown) {
+        for (const item of items) {
+            $do(this, item);
+        }
+        return this;
+    }
+
+    get name() {
+        return this.ident(2 * this.n + 1);
+    }
+
+    get type() {
+        return this.ident(2 * (this.n + 1));
+    }
+
+    values() {
+        return g.seq(this.n, i => [this.ident(this.n + i), this.ident(i)] as const);
+    }
+
+    toString() {
+        this.closeStr();
+        return this.code;
+    }
+
+    private closeStr() {
+        if (!this.instr) return;
+        this.code += '"';
+        this.instr = false;
+    }
+}
+
 export interface CodeConfig {
     names: CodeConfigNames;
+    /**
+     * Produce the
+     */
+    uniqAssertionMsg: (builder: CStringUniqAssertionMsgBuilder) => CStringUniqAssertionMsgBuilder;
 }
 
 export abstract class CodeGenerator {
@@ -22,13 +83,13 @@ export class C11CodeGenerator extends CodeGenerator {
         const k = 3;
 
         // useless under 2
-        if (n < 2) return null
+        if (n < 2) return null;
 
         const diff = (i1: number, i2: number) => `((${pureIdent(i1)})!=(${pureIdent(i2)}))`;
         const gen = (body: string, ident = pureIdent) => defineMacro(this.cfg.names.areuniq(n), g.seq(n, ident), body);
 
         // trivial base case
-        if (n == 2) return gen(diff(0, 1))
+        if (n == 2) return gen(diff(0, 1));
 
         // we should estimate the cost of using cliques before going through with it. example
         // areuniq3(a,b,c)areuniq2(a,b)*areuniq2(a,c)*areuniq2(b,c)
@@ -44,42 +105,54 @@ export class C11CodeGenerator extends CodeGenerator {
             ),
             ident
         );
-        if (n >= this.pivotNcliqueSmaller) return cliqueMacro
+        if (n >= this.pivotNcliqueSmaller) return cliqueMacro;
 
         // try expanded, see if smaller, update pivot
-        const expandedMacro = gen(g.join('*', g.map(g.combinations(n), ([a, b]) => diff(a,b))))
+        const expandedMacro = gen(
+            g.join(
+                '*',
+                g.map(g.combinations(n), ([a, b]) => diff(a, b))
+            )
+        );
         if (cliqueMacro.length < expandedMacro.length) {
-            this.pivotNcliqueSmaller = n
+            this.pivotNcliqueSmaller = n;
             return cliqueMacro;
         } else {
             return expandedMacro;
         }
-        
     }
 
     uniqenum(n: number) {
         if (n < 1) return null;
-
         const nameUniqenum = this.cfg.names.uniqenum(n);
+        if (n === 1) {
+            return gen(new CStringUniqAssertionMsgBuilder(n));
+        }
         const nameAreuniq = this.cfg.names.areuniq(n);
-        const ident = scopedIdentFn(['enum', '_Static_assert', nameUniqenum, nameAreuniq]);
-        const pName = ident(2 * n + 1);
-        const pType = ident(2 * n + 2);
-        const body = g.join(
-            ',',
-            g.seq(n, i => `${ident(n + i)}=(${ident(i)})`)
+        const builder = new CStringUniqAssertionMsgBuilder(
+            n,
+            scopedIdentFn(['enum', '_Static_assert', nameUniqenum, nameAreuniq])
         );
-        return defineMacro(
-            nameUniqenum,
-            (function* () {
-                yield pName;
-                for (const p of g.seq(2 * n, i => ident(Math.trunc(i / 2) + +!(i % 2) * n))) {
-                    yield p;
-                }
-                yield pType;
-            })(),
-            `enum ${pName}{${body}}${pType};_Static_assert(${callMacro(nameAreuniq, g.seq(n, ident))},"duplicate enum values")`
+        return gen(
+            builder,
+            `;_Static_assert(${callMacro(nameAreuniq, g.seq(n, builder.ident))},${this.cfg.uniqAssertionMsg(builder)})`
         );
+
+        function gen(builder: CStringUniqAssertionMsgBuilder, rest: string = '') {
+            const body = g.join(
+                ',',
+                g.map(builder.values(), ([k, v]) => `${k}=(${v})`)
+            );
+            return defineMacro(nameUniqenum, params(builder), `enum ${builder.name}{${body}}${builder.type}` + rest);
+        }
+
+        function* params(builder: CStringUniqAssertionMsgBuilder) {
+            yield builder.name;
+            for (const p of g.seq(2 * n, i => builder.ident(Math.trunc(i / 2) + +!(i % 2) * n))) {
+                yield p;
+            }
+            yield builder.type;
+        }
     }
 }
 
@@ -93,7 +166,7 @@ function callMacro(name: string, args: Iterable<string>) {
 
 /**
  * split graph in k parts of size (node count) n / K + +(i < n % k), i being the subgraph number (the +() parrt allows to account for when n % k != 0)
- */ 
+ */
 function partition_cliques(n: number, k: number) {
     if (n < k) {
         throw new Error('n must be greater than K. use a base case.');
@@ -120,50 +193,3 @@ function partition_cliques(n: number, k: number) {
     }
     return cliques;
 }
-
-/*const c_reserved_idents = new Set()
-    .add('do')
-    .add('if')
-    .add('for')
-    .add('int')
-    .add('auto')
-    .add('bool')
-    .add('case')
-    .add('char')
-    .add('else')
-    .add('enum')
-    .add('goto')
-    .add('long')
-    .add('true')
-    .add('void')
-    .add('break')
-    .add('const')
-    .add('false')
-    .add('float')
-    .add('short')
-    .add('union')
-    .add('while')
-    .add('double')
-    .add('extern')
-    .add('inline')
-    .add('return')
-    .add('signed')
-    .add('sizeof')
-    .add('static')
-    .add('struct')
-    .add('switch')
-    .add('typeof')
-    .add('alignas')
-    .add('alignof')
-    .add('default')
-    .add('nullptr')
-    .add('typedef')
-    .add('continue')
-    .add('register')
-    .add('restrict')
-    .add('unsigned')
-    .add('volatile')
-    .add('constexpr')
-    .add('thread_local')
-    .add('static_assert')
-    .add('typeof_unqual');*/

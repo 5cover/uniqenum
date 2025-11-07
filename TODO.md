@@ -15,8 +15,6 @@ Cliques is the best method.
 
 - [x] Reimplement the whole thing in Node TypeScript
 - [x] use modern conventions and a focused CLI and API for generating the code
-- [ ] provide downloadable pre-generated files in the repo.
-- [ ] reimplement row recursion with heuristically generated (a-g)(b-g)... shared helpers (pay for the fewest macros that bring the most benefit in our N range)
 - [ ] todo: when using ident names: make sure we add defined macro names to the ident banlist where needed
 - [ ] optimize performance (currently v8 crashes for N too big, fearing oom), allow splitting output in files of defined size or inline generation, better
   - [ ] new cli: keep seq-like N, provide options:
@@ -32,6 +30,7 @@ Cliques is the best method.
   - name.areuniq(n) -> ident name for the `areuniq` macro
   - name.uniqenum(n) -> ident name for the `uniqenum` macro
   - uniqAssertionMsg(n) -> code for a C string literal for the static assertion message in `uniqenum`. not a string, because the user may want to concat enum name, type, keys and values. maybe we provide them an object to get access to the underlying ident parameters easily
+- [ ] provide downloadable pre-generated files in the repo.
 - [ ] tooling that refactors regular enums in a code base into uniqenums automatically. skips auto initializer only enums, and asks in the console for each enum about the unique patterns (full/partial uniqueness)
 
 ## Paper
