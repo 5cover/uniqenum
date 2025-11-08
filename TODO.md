@@ -15,7 +15,6 @@ Cliques is the best method.
 
 - [x] Reimplement the whole thing in Node TypeScript
 - [x] use modern conventions and a focused CLI and API for generating the code
-- [ ] todo: when using ident names: make sure we add defined macro names to the ident banlist where needed
 - [ ] optimize performance (currently v8 crashes for N too big, fearing oom), allow splitting output in files of defined size or inline generation, better
   - [ ] new cli: keep seq-like N, provide options:
   - [ ] `-s,--split <file-size>`: enable generation of split files. specify a max file size. generates split headers by grouping dependencies, only one include per header to form a tree sharing common $\lceil2N/3\rceil$ dependencies, minimizing preprocessor overhead
