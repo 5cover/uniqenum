@@ -1,16 +1,5 @@
 # TODO
 
-## generation methods
-
-name|description|depth|dependencies|code size (number of parameters spelled)|helper macros required
--|-|-|-|-|-
-expanded|product of all unsorted pair differences|1||2$\binom{N}{2}$
-row|add a row to the right triangle: $v_{N-1} \times \prod_{i=1}^{N-1}(a_i - a_N)$|$N - 1$|$N - 1$|best: $2N-1$, worst: $3N-2$|some; for the last row
-cliques ($k=3$)|represent pairs as complete graphs edges; split into $k$ subgraphs|$\lceil\log_{k/2}N\rceil$|$\lfloor\frac{2N}{K}\rfloor$, $\lceil\frac{2N}{K}\rceil$|$kN-N$
-triangle|split into middle square or near-rectangle and 2 half as big right triangles|$\lceil\log_2N\rceil$|$\lfloor\frac{N}{2}\rfloor$, $\lceil\frac{N}{2}\rceil$|best: $2N$, worst: $N+\lfloor\frac{N²}{2}\rfloor$|a lot: for the middle square
-
-Cliques is the best method.
-
 ## Generator
 
 - [x] Reimplement the whole thing in Node TypeScript

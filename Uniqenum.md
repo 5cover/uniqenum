@@ -186,229 +186,25 @@ this is called the Vandermonde determinant, and code for it can be generated.
 
 $\binom{N}{2}$ scales quadratically. As N grows, we reach thousands, millions of pairs. This is obviously not acceptable, as file size explodes, and it could slow down significantly or even break compilation.
 
-Therefore, I've been looking for ways to express `areuniqN` in the fewest possible amount of bytes. I've considered the following
+Therefore, I've been looking for ways to express `areuniq` in the fewest possible amount of bytes. I've considered the following
 
 - linear simplification using static syntax helpers (express a subtraction in 5 tokes instead of 7 by calling this macro): too insiginificant, doesn't fix the quadratic binomial growth problem
 - recursive helpers: we can expand helpers in powers of 2: `#define _2(a,b) ((a)-(b))`, `#define _4(a,b,c,d) _2(a,b)*_2(c,d)`. shorter to express long streches of subtractions, but it's the same problem as before: the number of pairs grows quadratically, therefore the savings offer diminishing returns as N grows. the problem isn't the syntax, it's the sheer number of terms.
 
-which got me thinking. because `areuniqN` isn't an unstructured blob of random subtractions. it's the Vandermonde determinant. Which is, in fact, very structured.
+which got me thinking. because `areuniq` isn't an unstructured blob of random subtractions. it's the Vandermonde determinant. Which is, in fact, very structured.
 
-Which... could mean that we could express it recursively.
+Which could mean that we could express it recursively. I've found multiple solution to express `areuniq` of $N$ based on smaller N or through additional macros:
 
-## solution: recursion, rows & triangles
+| name            | description                                                                    | depth                     | dependencies                                             | code size (number of parameters spelled)          | helper macros required       |
+| --------------- | ------------------------------------------------------------------------------ | ------------------------- | -------------------------------------------------------- | ------------------------------------------------- | ---------------------------- |
+| expanded        | product of all unsorted pair differences                                       | 1                         |                                                          | 2$\binom{N}{2}$                                   |
+| row             | add a row to the right triangle: $v_{N-1} \times \prod_{i=1}^{N-1}(a_i - a_N)$ | $N - 1$                   | $N - 1$                                                  | best: $2N-1$, worst: $3N-2$                       | some; for the last row       |
+| cliques ($k=3$) | represent pairs as complete graphs edges; split into $k$ subgraphs             | $\lceil\log_{k/2}N\rceil$ | $\lfloor\frac{2N}{K}\rfloor$, $\lceil\frac{2N}{K}\rceil$ | $kN-N$                                            |
+| triangle        | split into middle square or near-rectangle and 2 half as big right triangles   | $\lceil\log_2N\rceil$     | $\lfloor\frac{N}{2}\rfloor$, $\lceil\frac{N}{2}\rceil$   | best: $2N$, worst: $N+\lfloor\frac{N²}{2}\rfloor$ | a lot: for the middle square |
 
-### Triangles: Recursion and You and You and You and You and You
+Cliques appears to be the best method, so we'll use it.
 
-We'll abbreviate `areuniqN` as `vN` from now on.
-
-right triangle representation of Vandermonde determinant
-
-for N=7:
-
-```text
-(a-b)
-(a-c)(b-c)
-(a-d)(b-d)(c-d)
-(a-e)(b-e)(c-e)(d-e)
-(a-f)(b-f)(c-f)(d-f)(e-f)
-(a-g)(b-g)(c-g)(d-g)(e-g)(f-g)
-```
-
-N can be expressed in terms of N-1 by simply adding a row to the triangle. This is the **row** (N-1, linear) recursion method.
-
-### Triangle recursion method
-
-There is also a logarithmic recursion method. You can express vN in terms of vN/2, by splitting the triangle in three parts
-
-- bottom left rectangle of width floor(N/2) and height ceil(N/2)
-- two smaller rectangle triangles:
-  - of height N/2-1 if N is even
-  - one of height floor((N-2)/2), one of height ceil((N-2)/2) if N is odd
-- recursive calls:
-  - $\lceil\frac{N}{2}\rceil$ and $\lfloor\frac{N}{2}\rfloor$
-
-Example for N=9:
-
-```text
-(a-b)
-(a-c)(b-c)
-(a-d)(b-d)(c-d)
-(a-e)(b-e)(c-e)(d-e)
-(a-f)(b-f)(c-f)(d-f)(e-f)
-(a-g)(b-g)(c-g)(d-g)(e-g)(f-g)
-(a-h)(b-h)(c-h)(d-h)(e-h)(f-h)(g-h)
-(a-i)(b-i)(c-i)(d-i)(e-i)(f-i)(g-i)(h-i)
-```
-
-Split center rectangle:
-
-4\*5
-
-```text
-(a-e)(b-e)(c-e)(d-e)
-(a-f)(b-f)(c-f)(d-f)
-(a-g)(b-g)(c-g)(d-g)
-(a-h)(b-h)(c-h)(d-h)
-(a-i)(b-i)(c-i)(d-i)
-```
-
-$$
-x_{W.H}=\prod_{w\in W}\prod_{h\in H}(w-h)
-$$
-
-### Recursion sequence
-
-base case is at $N=2$ (just one difference: a-b)
-
-Triangle method gives $\lceil\frac{N}{2}\rceil$ and $\lfloor\frac{N}{2}\rfloor$ recursion:
-
-- depth: $\log_2N-1$.
-- Max: $\log_2N-1 = 200 \Harr N = 2^{201}$.
-- Not quadratic in terms of code size, but requires a lot of helpers for rects.
-
-Row method gives $N-1$ recursion:
-
-- $N-1$ depth.
-- Max: $N-1 = 200 \Harr N = 201$.
-- Fully linear, bounded set of helpers needed (alwas (<=64).1 cross differences)
-
-201 is not enough, but we will never need anything even remotely close to $2^{201}$. So the optimal layout is somewhere in between: using both rows and triangles.
-
-We could define a reasonable maximum for N at $N=10^6$
-
-so we want all N up to $10^6$ to require not more than 200 macro calls.
-
-This means we have a "budget" of 200 recursive calls.
-
-log2(10^6) = 19.93.., almost 20
-
-question: for each N, when to use row or triangle method so that the depth required to express N<=10^6 is always <= 200.
-
-then: check if continuous: does the required depth always grow with N? can we expect issues if we forget to account that
-
-facts:
-
-- our recursion limit is 200.
-- triangle recursion should be as rare as possible in order to consume all our budget, since they are longer to express and require more helpers.
-- triangle recursion is more efficient at big N, (N/2, goes down faster), whereas row recursion is constant (always N-1)
-
-### restating the problem as highway construction
-
-I have a math problem i thought you could help me solve.
-We have the following Constants:
-D=200, max distance
-N=10⁶, max N
-
-We are working in a one dimensional space of natural numbers starting from 2 to N inclusive.
-
-A metaphor for the problem: We're a civil engineering firm designing a highway system with the goal of connecting all towns (values of N) to the capital (n=2) by placing either highways or rural roads in each.
-Since highways are much more expensive and disrupting, we want to place as few highways as possible to connect every town while keeping the total distance from any town to the capital <= D
-
-How distance(n) is calculated:
-
-For any n in [2;N], we can compute its "distance" from 2 (which has a distance to itself of 0) as:
-
-- 0 if n = 2
-- 1 + distance(ceil(n/2)) if n is a highway
-- 1 + distance(n - 1) otherwise (n is a rural road)
-
-We can start by considering there are roads everywhere.
-
-Goal : place the minimal amount of highways to ensure every town is connected to the capital by a distance <= D.
-
-Precision: any distance for N is fine, as long as it is <= D. There's no preference between a distance of 1 or 200. There also no need for the distance to be proportional to n.
-
-All that matters is distance(n) <= D for all n in [2;N]
-
-## ~~possible solution: representing Vandermonde as a self-similar structure~~
-
-Since our goal is to use helpers to minimize restating of terms.
-
-So each helper macro should use its terms as much as possible. the best function at doing that is Vandermonde itself, since it factors all unsorted pair differences.
-
-so drop cross differences (the xW_H business with the squares in the center of the right triangle representation) it does not help.
-
-instead build vN from multiples v of smaller N, effectively paving a right triangle from right triangles.
-
-### Attempt 1
-
-vN can be minimally represented not by specific letters but by the differences between the index of each. For instance for v3: if a is 1, b is 2, c is 3: it is doing (1-2)(2-3)(1-3), basically (1)(1)(2) if we use absolutes. we should use absolutes to stay in positive, since our pairs are unsorted we shouldn't get duplicates.
-
-Doing (1-2),(a-b) or (2-1),(b-a) is a convention choice. We choose to put the lowest first. to maintain consistency.
-
-A new representation: grouping factors by distance between indices, i.e., all pairs separated by the same offset.
-
-For N=9:
-
-```text
-Δ1: (a-b)(b-c)(c-d)(d-e)(e-f)(f-g)(g-h)(h-i)
-Δ2: (a-c)(b-d)(c-e)(d-f)(e-g)(f-h)(g-i)
-Δ3: (a-d)(b-e)(c-f)(d-g)(e-h)(f-i)
-Δ4: (a-e)(b-f)(c-g)(d-h)(e-i)
-Δ5: (a-f)(b-g)(c-h)(d-i)
-Δ6: (a-g)(b-h)(c-i)
-Δ7: (a-h)(b-i)
-Δ8: (a-i)
-```
-
-The number of factors at row Δm is $N-m$.
-I
-Is this self-similar
-
-Yes. vN is N-1 Δ1 factors, N-2 Δ2 factors, ..., up to 1 ΔN-1 factor.
-
-Meaning we can place any smaller vN in the right triangle: like v3 which is 1,1,2. It uses two factors and one below.
-
-We can decompose the right triangle in four smaller ones:
-
-- two at the bottom edge of N $\lceil\frac{N}{2}\rceil$ and $\lfloor\frac{N}{2}\rfloor$ (like earlier)
-- two halves of the central square. When N is even, they won't be symmetrical, one will be one unit smaller.
-
-Decomposition for N=6
-
-```text
-1 1 1 1 1 1
-2 2 2 2 2
-3 3 3 3
-4 4 4
-5 5
-6
-```
-
-Top right triangle:
-
-```text
-1 1 1
-2 2
-3
-```
-
-Bottom left triangle:
-
-```text
-4 4 4
-5 5
-6
-```
-
-Square decomposition (top left)
-
-```text
-1 1 1
-2 2
-3
-```
-
-bottom right
-
-```text
-  2
-3 3
-```
-
-Clearly it doesn't work, it's not self similar.
-
-## new approach: Clique model
+## The cliques generation method
 
 Instead of trying to find new representations, let's just do what always works: turn it into a graph.
 
@@ -438,9 +234,7 @@ The cost of a clique is the number of characters the minified implementation of 
 
 We could reduce the cost of digitCounts and `areuniq` by turning the macro name in an ident(M) (but it would need careful handling to avoid being shadowed by macro parameters in the implementation part), but we'd be loosing readability for calls outside. Unless we provide an interface `#define areuniq4(a,b,c,d) D(a,b,c,d)` or something. but we loose one depth level. I doubt it's worth it, but it's possible that it is.
 
-General Note: we should use `a!=b` instead of `a-b`. Longer, but avoid overflow problems with differences. We can still use `*` instead of `&&` though.
-
-Accepted. I’ll continue the document. Short, formal, implementation-ready.
+General Note: we should use `a!=b` instead of `a-b`. Longer, but avoid overflow problems with differences. We can still use `*` instead of `&&` though. Saves one byte.
 
 ### Summary of the idea (one sentence)
 
@@ -563,23 +357,6 @@ Note: pairs like (a1,a4) appear in `areuniq6` C12 and (a1,a7) in C13 etc. Some p
 - Choose `base_B = 16` or 32 for direct expansion.
 - Emit both human-readable and minified header variants. Use minified in production builds.
 - Build a small CLI that produces the header on demand. Do not hand-write big macros.
-
-### Example generator pseudo-code (skeleton)
-
-```python
-def emit_areuniq(n):
-    if n <= BASE_B:
-        emit_base_macro(n)
-        return
-    v1, v2, v3 = split_three(n)
-    # C12 indices: [0..v1+v2-1], etc
-    emit_macro_header(n)
-    emit("AREUNIQ_%d(...)= AREUNIQ_%d(args for C12) * AREUNIQ_%d(args for C13) * AREUNIQ_%d(args for C23)" %
-         (n, v1+v2, v1+v3, v2+v3))
-    emit_macro_footer(n)
-    emit_areuniq(v1+v2); emit_areuniq(v1+v3); emit_areuniq(v2+v3)
-```
-
 Parameter naming uses your `ident(i)` for stable short identifiers.
 
 ### Edge cases and notes
@@ -589,10 +366,99 @@ Parameter naming uses your `ident(i)` for stable short identifiers.
 - Compiler preprocessor time may still be nontrivial. Test build times. Use minified output to trim parse time.
 - If target compilers enforce low macro parameter count, split your `uniqenum` API so that the user supplies smaller groups. The generator can then produce glue macros that combine groups.
 
-### Final short checklist to implement
+## Splitting by files: dependency management
 
-1. Write Python generator implementing k=3 recursion and your `ident` naming.
-2. Choose base_B and implement base-case expansion.
-3. Emit `AREUNIQ_*` macros up to requested `max_N` and wrappers `uniqenum*`.
-4. Add tests for correctness and performance.
-5. Ship minified header and readable header.
+Now that we have a way to express `areuniq` on any N with reasonably short code, we have to tackle distribution of the macros.
+
+Our use case is as follows: to import the `areuniq` (and `uniqenum`) macro for a specific N, with a minimal preprocessing cost.
+
+A solution is to split the macros in multiple headers, restricting the amount of code the preprocessor needs to parse, at the cost of having more files.
+
+While we could split by amount of macros (e.g. allowing 100 macros by file), this would make the actual code size variable and difficult to predict; so the preferred solution is fixed file size splitting.
+
+However there is a problem. `areuniq` is not self contained. With the cliques generation, `areuniq` of $N$ depends on `areuniq` of $\lfloor\frac{2N}{3}\rfloor$ and $\lceil\frac{2N}{3}\rceil$.
+
+This means these smaller `areuniq` macros (and their own dependencies, recursively), must be in scope at the time we call `areuniq`.
+
+Since asking of the user to include the proper macros themselves is inconceivable, we chose to define an invariant: at the type an `areuniq` macros is `#define`d, its dependencies macros should be in scope as well.
+
+This means we'll need to `#include` other `uniquenum` headers to bring these dependencies to the scope.
+
+This incurs additional preprocessing cost; to avoid the cost exploding, we'll allow ourselves to use at most 1 `#include` directive at the top of the header. If we consider the included header as the "parent" of a header, this means we'll have a tree of headers, with one orphan root header at the top for the first few N values.
+The question is now: how to split headers so we can have as few of them as possible while staying under a conservative maximum size (256kb)?
+
+### Visualizing the dependencies
+
+The following DAG (directed acyclic graph) represents a graph of natural number nodes. Each node N is linked to $\lfloor\frac{2N}{3}\rfloor$ and $\lceil\frac{2N}{3}\rceil$.
+
+Each node's parents is its dependencies.
+
+```mermaid
+---
+config:
+  flowchart:
+    defaultRenderer: "elk"
+---
+flowchart RL
+3-->2  
+4-->2  
+4-->3  
+5-->3  
+5-->4  
+6-->4  
+7-->4  
+7-->5  
+8-->5  
+8-->6  
+9-->6  
+10-->6 
+10-->7 
+11-->7 
+11-->8 
+12-->8 
+13-->8 
+13-->9 
+14-->9 
+14-->10
+15-->10
+16-->10
+16-->11
+```
+
+### Attempt 1: naive split
+
+Tested with N=512, generating only `areuniq`
+
+We write code in a header until our size would go above 262144 bytes, then we move to a new header.
+
+Creates 4 5 headers:
+
+```text
+$ wc -c out/*
+ 260419 out/0.h
+ 260350 out/1.h
+ 261800 out/2.h
+ 258208 out/3.h
+  92757 out/4.h
+1133534 total
+```
+
+Ranges:
+
+| \#  | Min N | Max N (incl) | First macro deps | Last macro deps | Number of macros |
+| --- | ----- | ------------ | ---------------- | --------------- | ---------------- |
+| 0   | 2     | 250          |                  | 166,167         | 249              |
+| 1   | 251   | 350          | 167,168          | 233,234         | 100              |
+| 2   | 351   | 427          | 234              | 284,285         | 77               |
+| 3   | 428   | 491          | 285,286          | 327,328         | 64               |
+| 4   | 492   | 512          | 328              | 341,342         | 21               |
+
+H1 can depend on H0
+
+H2 though needs to depend on both H0 and H1
+
+H3 and H4 can depend on H1
+
+Since the number of macros per header naturally decreases (as bytes per macro increase but max size stays constant), we can expect that later headers will depend on a smaller N range, and will therefore depend on only one header.
+
+The exception is H2 here, which is too large to depend only on H0, but it would be much smaller (max N 375, expressing only 25 macros instead of 77) if we didn't allow it to depend on H1 too.

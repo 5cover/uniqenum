@@ -1,4 +1,4 @@
-import fs from 'fs';
+import fs from 'fs-extra';
 /*
 Writer -- output strategy of the generation algorithm
 2 kinds out output: uniqenum and shared helpers
@@ -7,7 +7,6 @@ FilesWriter -> write all to files, with optional binning of uniqenum files cappi
 */
 
 export interface CodeWriter {
-    addHelper(code: string): void
     addCode(code: string): void
     flush(): void;
 }
@@ -17,9 +16,6 @@ export class StreamWriter implements CodeWriter {
     constructor(private readonly stream: NodeJS.WritableStream) { }
     private helpers = '';
     private code = '';
-    addHelper(code: string): void {
-        this.helpers += code;
-    }
     addCode(code: string): void {
         this.code += code;
     }
@@ -29,14 +25,24 @@ export class StreamWriter implements CodeWriter {
 }
 
 export class FileWriter implements CodeWriter {
-    constructor(private readonly maxFileSize: number = 0) { }
-    addCode(content: string): void {
-        //...
+    files: string[] = [];
+    constructor(private readonly maxFileSize: number, private readonly outputDir: string) {
+        
     }
-    addHelper(code: string): void {
-        //...
+    addCode(content: string): void {
+        const last = this.files[this.files.length - 1];
+        if (last === undefined || last.length + content.length > this.maxFileSize) {
+            this.files.push(content);
+        } else {
+            this.files[this.files.length - 1] += content;
+        }
     }
     flush(): void {
-        
+        if (!this.files.length) return;
+        fs.ensureDirSync(this.outputDir);
+        let i = 0;
+        for (const file of this.files) {
+            fs.writeFileSync(`${this.outputDir}/${i++}.h`, file);
+        }
     }
 }

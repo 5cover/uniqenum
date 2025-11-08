@@ -1,59 +1,91 @@
-# uniqenum_graph_compressed.py
-import math
-from collections import defaultdict
+# uniqenum_graph.py
+from math import ceil
 
-N_MAX = 100
+N = range(3,17)
 
-# Step 1. Build dependency graph
-edges = {}
-for n in range(2, N_MAX + 1):
-    deps = []
-    a = math.floor(3 * n / 2)
-    b = math.ceil(3 * n / 2)
-    if a <= N_MAX:
-        deps.append(a)
-    if b <= N_MAX and b != a:
-        deps.append(b)
-    edges[n] = deps
+# print the longest chains in a grpah where each node n <= N_MAX is connected to ceil(2n/3) and floor(2n/3)
+# so each node is connected to 1 or 2 neighbor which are always smaller
 
-# Step 2. Compute in/out degrees
-in_deg = defaultdict(int)
-out_deg = defaultdict(int)
-for src, dsts in edges.items():
-    out_deg[src] = len(dsts)
-    for dst in dsts:
-        in_deg[dst] += 1
 
-# Step 3. Identify chain segments
-chains = []
-visited = set()
+def mermaid_basic():
+    print('flowchart')
+    edges: list[tuple[int,int]] = []
+    for n in N:
+        a = 2 * n // 3
+        b = ceil(2 * n / 3)
+        if a > 1:
+            edges.append((n,a))
+        if b > 1 and b != a:
+            edges.append((n,b))
+    for a,b in sorted(edges):
+        print(f"{a}-->{b}")
 
-for node in range(2, N_MAX + 1):
-    if node in visited:
-        continue
-    if out_deg[node] == 0:
-        continue  # no outgoing edges, skip
-    # start new chain if this node doesn't have exactly one parent or child
-    if in_deg[node] != 1 or out_deg[node] != 1:
-        for target in edges.get(node, []):
-            chain = [node]
-            nxt = target
-            while (
-                nxt in edges
-                and in_deg[nxt] == 1
-                and out_deg[nxt] == 1
-                and nxt not in visited
-            ):
-                chain.append(nxt)
-                visited.add(nxt)
-                nxt = edges[nxt][0]
-            if nxt not in chain:
-                chain.append(nxt)
-            visited.update(chain)
-            chains.append(chain)
+def mermaid_optimized():
+    print('flowchart')
+    tree: dict[int, set[int]] = {n: {2 * n // 3, ceil(2 * n / 3)} for n in  N} 
 
-# Step 4. Output compressed Mermaid graph
-print("graph TD")
-for chain in chains:
-    chain = [str(x) for x in chain if x is not None]
-    print("    " + " --> ".join(chain))
+    def get_longest_chain(n: int) -> list[int]:
+        if n not in tree:
+            return []
+        m = tree[n]
+        c = max((get_longest_chain(n) for n in m), key=len) if m else []
+        c.append(n)
+        return c
+
+    while len(c:=max((get_longest_chain(n) for n in N), key=len)) > 1:
+        c.reverse()
+        print(n:=c[0],end='')
+        for m in c[1:]:
+            if m not in tree[n]: break
+            print('-->',end=str(m))
+            tree[n].remove(m)
+            n=m
+        print()
+
+def plantuml():
+    print("@startuml")
+    print("left to right direction")
+    print("skinparam linetype ortho")
+    print("skinparam backgroundColor #fafafa")
+    print("skinparam arrowColor #888888")
+    print("skinparam defaultFontSize 10")
+
+    for n in N:
+        a = 2 * n // 3
+        b = ceil(2 * n / 3)
+        if a >= 1:
+            print(f"{n} --> {a}")
+        if b >= 1 and b != a:
+            print(f"{n} --> {b}")
+
+    print("@enduml")
+
+
+def graphviz():
+    print("digraph uniqenum {")
+    print("  rankdir=TB;")           # top-to-bottom layout
+    print("  node [shape=circle, fontsize=10, width=0.3, fixedsize=true];")
+
+    for n in N:
+        a = 2 * n // 3
+        b = ceil(2 * n / 3)
+        if a >= 1:
+            print(f"  {n} -> {a};")
+        if b >= 1 and b != a:
+            print(f"  {n} -> {b};")
+
+    print("}")
+
+def csacademy():
+    edges: list[tuple[int,int]] = []
+    for n in N:
+        a = 2 * n // 3
+        b = ceil(2 * n / 3)
+        if a > 1:
+            edges.append((n,a))
+        if b > 1 and b != a:
+            edges.append((n,b))
+    for edge in sorted(edges):
+        print(*edge)    
+            
+mermaid_basic()

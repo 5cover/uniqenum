@@ -1,8 +1,9 @@
 import { program } from '@commander-js/extra-typings';
-import { StreamWriter, type CodeWriter } from './writer.js';
+import { FileWriter, StreamWriter, type CodeWriter } from './writer.js';
 import { C11CodeGenerator, type CodeConfigNames } from './CodeGenerator.js';
 import type { UniqenumSpec } from './types.js';
 import { ident, safeParseInt, throwf } from './util.js';
+import { stdout } from 'process';
 
 program
     .name('uniqenum')
@@ -22,7 +23,8 @@ program
                     step: n3 ? intarg(n2) : 1,
                 },
             },
-            new StreamWriter(process.stdout)
+            //new StreamWriter(stdout)
+            new FileWriter(256 * 1024, 'out')
         );
     })
     .parse();
@@ -42,7 +44,7 @@ function generateUniqenum(spec: Readonly<UniqenumSpec>, writer: CodeWriter): voi
         uniqenum: n => ident((n - 1) * 2),
     };
     const generator = new C11CodeGenerator({
-        names: identNames,
+        names: readableNames,
         uniqAssertionMsg: b => b.str("duplicate enum values: ").expr(b.name).str(" ").expr(b.type)
     });
     for (let n = spec.N.start; n <= spec.N.end; n += spec.N.step) {
