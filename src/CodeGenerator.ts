@@ -1,75 +1,7 @@
-import { scopedIdentFn, ident as pureIdent } from './util.js';
+import { scopedIdentFn, ident as pureIdent } from './ident.js';
 import * as g from './g.js';
-
-/**
- * Configurration names. It's up to you to provide unique names.
- */
-export interface CodeConfigNames {
-    areuniq: (n: number) => string;
-    uniqenum: (n: number) => string;
-}
-
-export class CStringUniqAssertionMsgBuilder {
-    constructor(
-        readonly n: number,
-        readonly ident = pureIdent
-    ) {}
-    private code = '';
-    private instr = false;
-    str(str: string) {
-        if (!this.instr) {
-            this.code += '"';
-            this.instr = true;
-        }
-        this.code += str.replaceAll(/["\\]/g, '\\$&').replaceAll('\n', '\\n').replaceAll('\r', '\\r');
-        return this;
-    }
-
-    expr(expr: string) {
-        this.closeStr();
-        this.code += '#';
-        this.code += expr;
-        return this;
-    }
-
-    forEach<T>(items: Iterable<T>, $do: (builder: this, item: T) => unknown) {
-        for (const item of items) {
-            $do(this, item);
-        }
-        return this;
-    }
-
-    get name() {
-        return this.ident(2 * this.n + 1);
-    }
-
-    get type() {
-        return this.ident(2 * (this.n + 1));
-    }
-
-    values() {
-        return g.seq(this.n, i => [this.ident(this.n + i), this.ident(i)] as const);
-    }
-
-    toString() {
-        this.closeStr();
-        return this.code;
-    }
-
-    private closeStr() {
-        if (!this.instr) return;
-        this.code += '"';
-        this.instr = false;
-    }
-}
-
-export interface CodeConfig {
-    names: CodeConfigNames;
-    /**
-     * Produce the
-     */
-    uniqAssertionMsg: (builder: CStringUniqAssertionMsgBuilder) => CStringUniqAssertionMsgBuilder;
-}
+import { CStringBuilder } from './CStringBuilder.js';
+import { AssertOnceInfo, type CodeConfig } from './CodeConfig.js';
 
 export abstract class CodeGenerator {
     constructor(protected readonly cfg: CodeConfig) {}
@@ -80,16 +12,13 @@ export abstract class CodeGenerator {
 export class C11CodeGenerator extends CodeGenerator {
     pivotNcliqueSmaller = Infinity;
     areuniq(n: number): string | null {
-        const k = 3;
-
         // useless under 2
         if (n < 2) return null;
 
-        const diff = (i1: number, i2: number) => `((${pureIdent(i1)})!=(${pureIdent(i2)}))`;
-        const gen = (body: string, ident = pureIdent) => defineMacro(this.cfg.names.areuniq(n), g.seq(n, ident), body);
-
         // trivial base case
-        if (n == 2) return gen(diff(0, 1));
+        if (n === 2) return this.gen(n, this.diff(0, 1));
+
+        const k = 3;
 
         // we should estimate the cost of using cliques before going through with it. example
         // areuniq3(a,b,c)areuniq2(a,b)*areuniq2(a,c)*areuniq2(b,c)
@@ -98,9 +27,10 @@ export class C11CodeGenerator extends CodeGenerator {
         // implementation: don't precompute  the size: generate using both methods and pick shortest, and since size grows monotonically, we can optimize by remembering the smallest n at which expanded > clique
         const cliques = partition_cliques(n, k);
         const ident = scopedIdentFn(cliques.map(([size, _]) => this.cfg.names.areuniq(size)));
-        const cliqueMacro = gen(
+        const cliqueMacro = this.gen(
+            n,
             g.join(
-                '*',
+                this.cfg.assert.when === 'all' ? ';' : '*',
                 cliques.map(([size, clique]) => callMacro(this.cfg.names.areuniq(size), g.map(clique, ident)))
             ),
             ident
@@ -108,10 +38,11 @@ export class C11CodeGenerator extends CodeGenerator {
         if (n >= this.pivotNcliqueSmaller) return cliqueMacro;
 
         // try expanded, see if smaller, update pivot
-        const expandedMacro = gen(
+        const expandedMacro = this.gen(
+            n,
             g.join(
                 '*',
-                g.map(g.combinations(n), ([a, b]) => diff(a, b))
+                g.map(g.combinations(n), ([a, b]) => this.diff(a, b))
             )
         );
         if (cliqueMacro.length < expandedMacro.length) {
@@ -122,36 +53,40 @@ export class C11CodeGenerator extends CodeGenerator {
         }
     }
 
+    private diff(i1: number, i2: number) {
+        const enumerator1 = pureIdent(i1);
+        const enumerator2 = pureIdent(i2);
+        const expr = `((${pureIdent(i1)})!=(${pureIdent(i2)}))`;
+        return this.cfg.assert.when === 'all'
+            ? `_Static_assert(${expr},${this.cfg.assert.msg(new CStringBuilder(), { enumerator1, enumerator2 })})`
+            : expr;
+    }
+    private gen(n: number, body: string, ident = pureIdent) {
+        return defineMacro(this.cfg.names.areuniq(n), g.seq(n, ident), body);
+    }
+
     uniqenum(n: number) {
         if (n < 1) return null;
         const nameUniqenum = this.cfg.names.uniqenum(n);
         if (n === 1) {
-            return gen(new CStringUniqAssertionMsgBuilder(n));
+            return gen(new AssertOnceInfo(n, pureIdent));
         }
         const nameAreuniq = this.cfg.names.areuniq(n);
-        const builder = new CStringUniqAssertionMsgBuilder(
-            n,
-            scopedIdentFn(['enum', '_Static_assert', nameUniqenum, nameAreuniq])
-        );
+        const info = new AssertOnceInfo(n, scopedIdentFn(['enum', '_Static_assert', nameUniqenum, nameAreuniq]));
+        const areuniqCall = callMacro(nameAreuniq, info.keys());
         return gen(
-            builder,
-            `;_Static_assert(${callMacro(nameAreuniq, g.seq(n, builder.ident))},${this.cfg.uniqAssertionMsg(builder)})`
+            info,
+            this.cfg.assert.when === 'all'
+                ? `;${areuniqCall}`
+                : `;_Static_assert(${areuniqCall},${this.cfg.assert.msg(new CStringBuilder(), info)})`
         );
 
-        function gen(builder: CStringUniqAssertionMsgBuilder, rest: string = '') {
+        function gen(info: AssertOnceInfo, rest: string = '') {
             const body = g.join(
                 ',',
-                g.map(builder.values(), ([k, v]) => `${k}=(${v})`)
+                g.map(g.unzip([info.keys(), info.values()]), x => x.join(' '))
             );
-            return defineMacro(nameUniqenum, params(builder), `enum ${builder.name}{${body}}${builder.type}` + rest);
-        }
-
-        function* params(builder: CStringUniqAssertionMsgBuilder) {
-            yield builder.name;
-            for (const p of g.seq(2 * n, i => builder.ident(Math.trunc(i / 2) + +!(i % 2) * n))) {
-                yield p;
-            }
-            yield builder.type;
+            return defineMacro(nameUniqenum, info.params(), `enum ${info.name}{${body}}${info.type}` + rest);
         }
     }
 }

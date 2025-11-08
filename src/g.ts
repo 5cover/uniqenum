@@ -10,6 +10,22 @@ export function* seq<T>(length: number, map: (i: number) => T): Generator<T, voi
     for (let i = 0; i < length; ++i) yield map(i);
 }
 
+type Wrap<T> = {
+    [Key in keyof T]: Iterator<T[Key]>;
+};
+
+export function* unzip<Tuple extends unknown[]>(iterators: Wrap<Tuple>): Generator<Tuple, void, void> {
+    while (true) {
+        const t = [];
+        for (const it of iterators) {
+            const r = it.next();
+            if (r.done) return;
+            t.push(r.value);
+        }
+        yield t as Tuple;
+    }
+}
+
 export function join<T>(by: string, gen: Iterable<T>): string {
     let s = '';
     for (const item of gen) {

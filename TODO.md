@@ -21,6 +21,14 @@
 - [ ] provide downloadable pre-generated files in the repo.
 - [ ] tooling that refactors regular enums in a code base into uniqenums automatically. skips auto initializer only enums, and asks in the console for each enum about the unique patterns (full/partial uniqueness)
 
+```text
+/**
+  * include: include dependencies, even if not in original N range
+  * exclude: exclude dependencies
+  */
+deps: 'include' | 'exclude';
+```
+
 ## Paper
 
 Rewrite scraps into an actual engineering paper covering

@@ -75,10 +75,11 @@ uniqenum2(bar_ioctl_cmd,
 
 ```text
 uniqenum<N: number of enumerators>(<enum-name>,
-  <enumerator1>,<value1>,
-  <enumerator2>,<value2>,
-  ...
-  <enumeratorN>,<valueN>
+    <key1>,=<value1>,
+    <key2>,=<value2>,
+    <key3>,, // automatic value, 1 greater than the previous value
+    ...
+    <keyN>,=<valueN>,
 <typedef-name>)
 ```
 
@@ -87,10 +88,10 @@ uniqenum<N: number of enumerators>(<enum-name>,
 Usage:
 
 ```c
-typedef uniqenum5(E1e,A1,1,B1,2,C1,3,D1,4,E1,5,E1t); // typedef enum E1e{} E1t  named + typedef
-typedef uniqenum5(,A2,1,B2,2,C2,3,D2,4,E2,5,E2t);    // typedef enum{} E2t    typedef
-uniqenum5(E3e,A3,1,B3,2,C3,3,D3,4,E3,5,);            // enum E3e{}            named
-uniqenum5(,A4,1,B4,2,C4,3,D4,4,E4,5,);               // enum{}              anonymous
+typedef uniqenum5(E1e,A1,=1,B1,=2,C1,=3,D1,=4,E1,=5,E1t); // typedef enum E1e{} E1t  named + typedef
+typedef uniqenum5(,A2,=1,B2,=2,C2,=3,D2,=4,E2,=5,E2t);    // typedef enum{} E2t    typedef
+uniqenum5(E3e,A3,=1,B3,=2,C3,=3,D3,=4,E3,=5,);            // enum E3e{}            named
+uniqenum5(,A4,=1,B4,=2,C4,=3,D4,=4,E4,=5,);               // enum{}              anonymous
 ```
 
 However sometimes you want to define not total uniqueness, but partial uniqueness. Allowing two or more "synonym" enumerators that resolve to the same underlying value.
@@ -119,32 +120,55 @@ This can be useful to quickly enable uniqueness checking to existing code.
 
 However, it does require repeating each enumerator. Which is why the shorthand `uniqenumN` is still provided.
 
-## Example
-
-Example for N=5
-
-The exact macro names are subject to change; this is only a sketch.
+## Formatted example
 
 ```c
-#define uniqenum5(name,f,a,g,b,h,c,i,d,j,e,type)enum name{f=(a),g=(b),h=(c),i=(d),j=(e)}type;_Static_Assert(areuniq5(a,b,c,d,e),"enum values must be unique")
-#define areuniq5(a,b,c,d,e) ((a)-(b))*((a)-(c))*((a)-(d))*((a)-(e))*((b)-(c))*((b)-(d))*((b)-(e))*((c)-(d))*((c)-(e))*((d)-(e))
+typedef uniqenum6(color,
+    BLACK,,
+    RED,=0xff0000,
+    GREEN,=0xff00,
+    BLUE,=0xff,
+    BLUEGREEN,BLUE | GREEN,
+    REDGREEN,RED | GREEN,
+color_t);
 ```
 
-The parameter names are consistent. For `uniqenum`, the first and last parameters are always `name` and `type` (for the enum name and typedef name).
+Preprocesses the following code (formatted)
 
-The following values are generated using the ident function, but not in left to right order.
-
-Indeed, in order to save as many bytes as possible, we need to reserve the shortest identifiers for values, keeping the longest ones for enumerators. Because we spell each value at least twice, and each enumerator only once. Therefore, we use this pattern:
-
-| Ident # | used as |
-| ------- | ------- |
-| 1       | value 1 |
-| 2       | value 2 |
-| N       | value N |
-| N + 1   | key 1   |
-| N + N   | key N   |
-
-hence the intermixed "f,a,g,b,h..." you're seeing.
+```c
+typedef enum color {
+  BLACK,
+  RED = 0xff0000,
+  GREEN = 0xff00,
+  BLUE = 0xff,
+  BLUEGREEN = BLUE | GREEN,
+  REDGREEN = RED | GREEN
+} color_t;
+_Static_assert(
+      ((BLACK) != (RED))
+    * ((BLACK) != (GREEN))
+    * ((RED) != (GREEN))
+    * ((BLACK) != (RED))
+    * ((BLACK) != (BLUE))
+    * ((RED) != (BLUE))
+    * ((GREEN) != (BLUE))
+    * ((BLACK) != (RED))
+    * ((BLACK) != (BLUEGREEN))
+    * ((RED) != (BLUEGREEN))
+    * ((BLACK) != (RED))
+    * ((BLACK) != (REDGREEN))
+    * ((RED) != (REDGREEN))
+    * ((BLUEGREEN) != (REDGREEN))
+    * ((GREEN) != (BLUE))
+    * ((GREEN) != (BLUEGREEN))
+    * ((BLUE) != (BLUEGREEN))
+    * ((GREEN) != (BLUE))
+    * ((GREEN) != (REDGREEN))
+    * ((BLUE) != (REDGREEN))
+    * ((BLUEGREEN) != (REDGREEN)),
+    "duplicate enum values: " "color" " " "color_t"
+);
+```
 
 ## ident(n): bijective identifier generation
 
@@ -380,53 +404,6 @@ However there is a problem. `areuniq` is not self contained. With the cliques ge
 
 This means these smaller `areuniq` macros (and their own dependencies, recursively), must be in scope at the time we call `areuniq`.
 
-Since asking of the user to include the proper macros themselves is inconceivable, we chose to define an invariant: at the type an `areuniq` macros is `#define`d, its dependencies macros should be in scope as well.
-
-This means we'll need to `#include` other `uniquenum` headers to bring these dependencies to the scope.
-
-This incurs additional preprocessing cost; to avoid the cost exploding, we'll allow ourselves to use at most 1 `#include` directive at the top of the header. If we consider the included header as the "parent" of a header, this means we'll have a tree of headers, with one orphan root header at the top for the first few N values.
-The question is now: how to split headers so we can have as few of them as possible while staying under a conservative maximum size (256kb)?
-
-### Visualizing the dependencies
-
-The following DAG (directed acyclic graph) represents a graph of natural number nodes. Each node N is linked to $\lfloor\frac{2N}{3}\rfloor$ and $\lceil\frac{2N}{3}\rceil$.
-
-Each node's parents is its dependencies.
-
-```mermaid
----
-config:
-  flowchart:
-    defaultRenderer: "elk"
----
-flowchart RL
-3-->2  
-4-->2  
-4-->3  
-5-->3  
-5-->4  
-6-->4  
-7-->4  
-7-->5  
-8-->5  
-8-->6  
-9-->6  
-10-->6 
-10-->7 
-11-->7 
-11-->8 
-12-->8 
-13-->8 
-13-->9 
-14-->9 
-14-->10
-15-->10
-16-->10
-16-->11
-```
-
-### Attempt 1: naive split
-
 Tested with N=512, generating only `areuniq`
 
 We write code in a header until our size would go above 262144 bytes, then we move to a new header.
@@ -462,3 +439,7 @@ H3 and H4 can depend on H1
 Since the number of macros per header naturally decreases (as bytes per macro increase but max size stays constant), we can expect that later headers will depend on a smaller N range, and will therefore depend on only one header.
 
 The exception is H2 here, which is too large to depend only on H0, but it would be much smaller (max N 375, expressing only 25 macros instead of 77) if we didn't allow it to depend on H1 too.
+
+## The static assertion message: knowing which values are duplicates
+
+Currently, we only display a generic message: "duplicate enum values: {name} {typedef-name}" 
