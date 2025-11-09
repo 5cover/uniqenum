@@ -1,3 +1,5 @@
+import type { Range } from "./types.js";
+
 export function* combinations(n: number): Generator<[number, number], void, void> {
     for (let i = 0; i < n; ++i) {
         for (let j = i + 1; j < n; ++j) {
@@ -10,6 +12,17 @@ export function* seq<T>(length: number, map: (i: number) => T): Generator<T, voi
     for (let i = 0; i < length; ++i) yield map(i);
 }
 
+export function* range<T>(range: Range): Generator<number, void, void> {
+    for (let i = range.start; i < range.end; ++i) yield i;
+}
+
+export function reduce<T, TAgg>(gen: Iterable<T>, seed: TAgg, aggregate: (acc: TAgg, item: T) => TAgg) {
+    let acc = seed;
+    for (const item of gen) {
+        acc = aggregate(acc, item);
+    }
+    return acc;
+}
 type Wrap<T> = {
     [Key in keyof T]: Iterator<T[Key]>;
 };

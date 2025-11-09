@@ -1,5 +1,7 @@
-const MaxCacheSize = 16384;
-const identCache = new Map<number, string>();
+import { StableCache } from './StableCache.js';
+import type { Teller, Writer } from './writing.js';
+
+const identCache = new StableCache<number, string>(pureIdent); // no cache size limit; theoritical max size is N_max
 
 const n2char = new Map<number, string>();
 const char2n = new Map<string, number>();
@@ -16,15 +18,15 @@ export type IdentFn = typeof ident;
 /**
  * Create a callable ident function that skips some identifiers to avoid shadowing a scope, getting the next valid one.
  */
-export function scopedIdentFn(scope: Iterable<string> = []): IdentFn {
-    const sortedSkips = Array.from(scope, identAntecedent).filter(i => i !== null).sort((a, b) => a - b);
+export function scopedIdentFn(skipAntecedents: number[]): IdentFn {
+    skipAntecedents.sort((a, b) => a - b);
     return i => {
-        for (const s of sortedSkips) {
+        for (const s of skipAntecedents) {
             if (s > i) break;
-            else i++
+            else i++;
         }
         return ident(i);
-    }
+    };
 }
 
 /**
@@ -32,11 +34,7 @@ export function scopedIdentFn(scope: Iterable<string> = []): IdentFn {
  * It may return a keyword. Skipping not implemented as macor parameters may be keywords since the C parser doesn't see them, only the preprocessor.
  */
 export function ident(i: number): string {
-    const cached = identCache.get(i);
-    if (cached !== undefined) return cached;
-    const s = pureIdent(i);
-    if (identCache.size <= MaxCacheSize) identCache.set(i, s);
-    return s;
+    return identCache.get(i);
 }
 
 /**
@@ -44,7 +42,13 @@ export function ident(i: number): string {
  * Throws if `s` contains a character not in the alphabet.
  * @returns a number i as ident(i)===s, or null if s is not an ident
  */
-export function identAntecedent(s: string): number | null {
+export function identAntecedent(s: string | Teller): number | null {
+    if (typeof s !== 'string') {
+        const result = { i: null };
+        s(writeIdentAntecedent(result));
+        return result.i;
+    }
+
     if (s.length === 0) return null;
 
     const L = s.length;
@@ -65,9 +69,45 @@ export function identAntecedent(s: string): number | null {
     return base + firstIdx * B ** (L - 1) + value;
 }
 
+function writeIdentAntecedent(result: { i: number | null }): Writer {
+    let pos = 0;
+    let value = 0;
+    let firstIdx: number | undefined;
+    let length = 0;
+
+    const w: Writer = o => {
+        if (o === undefined) return w;
+        if (typeof o === 'string') {
+            for (const c of o) {
+                const idx = char2n.get(c);
+                if (idx === undefined) {
+                    result.i = null;
+                    return w;
+                }
+                if (pos === 0) {
+                    firstIdx = idx;
+                } else {
+                    value = value * B + idx;
+                }
+                pos++;
+            }
+            length += o.length;
+            if (firstIdx !== undefined) {
+                // number of identifiers with shorter length
+                const base = (F * (B ** (length - 1) - 1)) / (B - 1);
+                result.i = base + firstIdx * B ** (length - 1) + value;
+            }
+            return w;
+        }
+        return o(w);
+    };
+
+    return w;
+}
+
 const LN63 = Math.log(63);
 export function identLength(i: number): number {
-    return Math.ceil(Math.log((31 * (i + 1)) / 26) / LN63)
+    return Math.ceil(Math.log((31 * (i + 1)) / 26) / LN63);
 }
 
 function pureIdent(i: number): string {
@@ -111,4 +151,10 @@ function buildCharMap(offsetOrChar: number | string, iStart: number, iEnd: numbe
         n2char.set(i, chr);
         char2n.set(chr, i);
     }
+}
+
+export function identAntecedentAssert(ident: string): number {
+    const i = identAntecedent(ident);
+    if (i === null) throw RangeError('enum must be a valid ident');
+    return i;
 }

@@ -1,17 +1,18 @@
-import type { CStringBuilder } from './CStringBuilder.js';
-import type { IdentFn } from './ident.js';
-import * as g from './g.js';
+import type * as fmt from "./format.js";
+
+type FormatMacroName = fmt.Input<'n'>;
+
 /**
  * Configurration names. It's up to you to provide unique names.
  */
 export interface CodeConfigNames {
-    areuniq: (n: number) => string;
-    uniqenum: (n: number) => string;
+    areuniq: FormatMacroName;
+    uniqenum: FormatMacroName;
 }
 
-type AssertionCfg<Key extends string, T> = {
+type AssertionCfg<Key extends string, Refs> = {
     when: Key;
-    msg: (builder: CStringBuilder, data: T) => CStringBuilder;
+    msg: fmt.Input<Refs>;
 };
 
 export interface CodeConfig {
@@ -20,41 +21,10 @@ export interface CodeConfig {
      * all: generate one static assertion per pair
      * once: generate one static assertion for all pairs
      */
-    assert: AssertionCfg<'all', AssertAllInfo> | AssertionCfg<'once', AssertOnceInfo>;
+    assert: AssertionCfg<'all', AssertAllRefs> | AssertionCfg<'once', AssertOnceRefs>;
 }
 
-export interface AssertAllInfo {
-    enumerator1: string;
-    enumerator2: string;
-}
+export type AssertAllRefs = 'enumerator1' | 'enumerator2';
 
-export class AssertOnceInfo {
-    constructor(
-        readonly n: number,
-        private readonly ident: IdentFn
-    ) {}
+export type AssertOnceRefs = 'n' | 'name' | 'type';
 
-    get name() {
-        return this.ident(2 * this.n + 1);
-    }
-
-    get type() {
-        return this.ident(2 * (this.n + 1));
-    }
-
-    values() {
-        return g.seq(this.n, i => this.ident(this.n + i));
-    }
-
-    keys() {
-        return g.seq(this.n, this.ident);
-    }
-
-    *params() {
-        yield this.name;
-        for (const p of g.seq(2 * this.n, i => this.ident(Math.trunc(i / 2) + +(i % 2) * this.n))) {
-            yield p;
-        }
-        yield this.type;
-    }
-}
