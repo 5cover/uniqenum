@@ -65,6 +65,11 @@ export function identAntecedent(s: string): number | null {
     return base + firstIdx * B ** (L - 1) + value;
 }
 
+const LN63 = Math.log(63);
+export function identLength(i: number): number {
+    return Math.ceil(Math.log((31 * (i + 1)) / 26) / LN63)
+}
+
 function pureIdent(i: number): string {
     if (i < 0) {
         throw Error(`i must be >= 0, got ${i}`);

@@ -7,16 +7,19 @@ FilesWriter -> write all to files, with optional binning of uniqenum files cappi
 */
 
 export interface CodeWriter {
-    addCode(code: string): void
+    addAreuniq(n: number, code: string): void;
+    addUniquenum(n: number, code: string): void;
     flush(): void;
 }
 
-
 export class StreamWriter implements CodeWriter {
-    constructor(private readonly stream: NodeJS.WritableStream) { }
+    constructor(private readonly stream: NodeJS.WritableStream) {}
     private helpers = '';
     private code = '';
-    addCode(code: string): void {
+    addAreuniq(n: number, code: string): void {
+        this.code += code;
+    }
+    addUniquenum(n: number, code: string): void {
         this.code += code;
     }
     flush(): void {
@@ -24,25 +27,51 @@ export class StreamWriter implements CodeWriter {
     }
 }
 
+type FileInfo = [startN: number, code: string];
+
+export interface FileWriterConfig {
+    maxFileSize: number,
+    outputDir: string,
+    maxN: number,
+    includeGuards: 'omit' | 'pragma once' | 'classic'
+}
+
 export class FileWriter implements CodeWriter {
-    files: string[] = [];
-    constructor(private readonly maxFileSize: number, private readonly outputDir: string) {
-        
+    filesAreuniq: FileInfo[] = [];
+    filesUniqenum: FileInfo[] = [];
+    constructor(private readonly cfg: Readonly<FileWriterConfig>) {}
+    addAreuniq(n: number, code: string): void {
+        this.add(n, code, this.filesAreuniq);
     }
-    addCode(content: string): void {
-        const last = this.files[this.files.length - 1];
-        if (last === undefined || last.length + content.length > this.maxFileSize) {
-            this.files.push(content);
+    addUniquenum(n: number, code: string): void {
+        this.add(n, code, this.filesUniqenum);
+    }
+
+    private add(n: number, code: string, to: FileInfo[]) {
+        const last = to[to.length - 1];
+        if (last === undefined || last.length + code.length > this.cfg.maxFileSize) {
+            to.push([n, code]);
         } else {
-            this.files[this.files.length - 1] += content;
+            last[1] += code;
         }
     }
+
     flush(): void {
-        if (!this.files.length) return;
-        fs.ensureDirSync(this.outputDir);
-        let i = 0;
-        for (const file of this.files) {
-            fs.writeFileSync(`${this.outputDir}/${i++}.h`, file);
+        if (!this.filesAreuniq.length) return;
+        fs.ensureDirSync(this.cfg.outputDir);
+        this.writeFiles('areuniq', this.filesAreuniq);
+        this.filesAreuniq = [];
+        this.writeFiles('uniqenum', this.filesUniqenum);
+        this.filesUniqenum = [];
+    }
+
+    writeFiles(prefix: string, files: readonly FileInfo[]): void {
+        for (let i = 0; i < files.length; ++i) {
+            const [startN, file] = files[i]!;
+            const next = files[i + 1];
+            const endN = next === undefined ? this.cfg.maxN : next[0] - 1;
+            const name = `${prefix}${startN}_${endN}`;
+            fs.writeFileSync(`${this.cfg.outputDir}/${name}.h`, file);
         }
     }
 }

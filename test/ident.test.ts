@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from "node:test";
-import { ident, scopedIdentFn, identAntecedent } from '../src/ident.js';
+import { ident, scopedIdentFn, identAntecedent, identLength } from '../src/ident.js';
 import * as g from '../src/g.js';
 import { stdin } from 'node:process';
 import * as readline from 'node:readline/promises';
@@ -327,7 +327,6 @@ function identsample() {
 async function identLengthDemonstration() {
     const N = 100;
     let n = 0;
-    const LN63 = Math.log(63);
     const rl = readline.createInterface(stdin);
     while (true) {
         console.table(
@@ -338,7 +337,7 @@ async function identLengthDemonstration() {
                     i,
                     ident: d,
                     length: d.length,
-                    approx: pctfmt(d.length, Math.ceil(Math.log((31 * (i + 1)) / 26) / LN63)),
+                    approx: pctfmt(d.length, identLength(i)),
                 };
             }),
             ['i', 'ident', 'length', 'approx']

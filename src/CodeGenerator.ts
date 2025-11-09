@@ -16,7 +16,7 @@ export class C11CodeGenerator extends CodeGenerator {
         if (n < 2) return null;
 
         // trivial base case
-        if (n === 2) return this.gen(n, this.diff(0, 1));
+        if (n === 2) return this.gen(n, this.pair(0, 1));
 
         const k = 3;
 
@@ -42,7 +42,7 @@ export class C11CodeGenerator extends CodeGenerator {
             n,
             g.join(
                 '*',
-                g.map(g.combinations(n), ([a, b]) => this.diff(a, b))
+                g.map(g.combinations(n), ([a, b]) => this.pair(a, b))
             )
         );
         if (cliqueMacro.length < expandedMacro.length) {
@@ -53,7 +53,7 @@ export class C11CodeGenerator extends CodeGenerator {
         }
     }
 
-    private diff(i1: number, i2: number) {
+    private pair(i1: number, i2: number) {
         const enumerator1 = pureIdent(i1);
         const enumerator2 = pureIdent(i2);
         const expr = `((${pureIdent(i1)})!=(${pureIdent(i2)}))`;

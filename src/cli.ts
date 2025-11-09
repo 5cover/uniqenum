@@ -25,14 +25,14 @@ program
                     step: n3 ? intarg(n2) : 1,
                 },
             },
-            //new StreamWriter(stdout)
-            new FileWriter(256 * 1024, 'out')
+            new StreamWriter(stdout)
+            //new FileWriter(256 * 1024, 'out')
         );
     })
     .parse();
 
 function intarg(arg?: string) {
-    return safeParseInt(arg) ?? throwf(new Error(`argument must be an number: ${arg}`))
+    return safeParseInt(arg) ?? throwf(new Error(`argument must be an number: ${arg}`));
 }
 
 function generateUniqenum(spec: Readonly<UniqenumSpec>, writer: CodeWriter): void {
@@ -48,12 +48,12 @@ function generateUniqenum(spec: Readonly<UniqenumSpec>, writer: CodeWriter): voi
     const generator = new C11CodeGenerator({
         names: readableNames,
         assert: { when: 'all', msg: (b, d) => b.str("duplicate enum values: ").expr(d.enumerator1).str(" and ").expr(d.enumerator2) }
-        //assert: { when: 'once', msg: (b, d) => b.str("duplicate enum values: ").expr(d.name).str(" ").expr(d.type) },
+        //assert: { when: 'once', msg: (b, d) => b.str('duplicate enum values: ').expr(d.name).str(' ').expr(d.type) },
     });
     for (let n = spec.N.start; n <= spec.N.end; n += spec.N.step) {
         let m;
-        if (null !== (m = generator.areuniq(n))) writer.addCode(m);
-        if (null !== (m = generator.uniqenum(n))) writer.addCode(m);
+        if (null !== (m = generator.areuniq(n))) writer.addAreuniq(n, m);
+        //if (null !== (m = generator.uniqenum(n))) writer.addUniquenum(n, m);
     }
     writer.flush();
 }
