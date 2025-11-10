@@ -22,6 +22,7 @@ export abstract class CodeGenerator {
      * Invariant: uniqenum(n) is pure
      */
     abstract uniqenum(n: number): Teller;
+    abstract uniqenumSize(n: number): number;
     /**
      * Generate the Areuniq macro.
      * @param {number} n
@@ -31,6 +32,7 @@ export abstract class CodeGenerator {
      *
      */
     abstract areuniq(n: number): Teller;
+    abstract areuniqSize(n: number): number;
 }
 
 const iaEnum = identAntecedentAssert('enum');
@@ -93,6 +95,10 @@ export class C11CodeGenerator extends CodeGenerator {
         return expandedMacro;
     }
 
+    override areuniqSize(n: number): number {
+        return measureLength(this.areuniq(n));
+    }
+
     private pair(i1: number, i2: number) {
         return (o: Writer) => {
             const enumerator1 = pureIdent(i1);
@@ -134,6 +140,10 @@ export class C11CodeGenerator extends CodeGenerator {
                       })
                   )
         );
+    }
+
+    override uniqenumSize(n: number): number {
+        return measureLength(this.uniqenum(n));
     }
 
     private genUniqenum(name: string, info: UniqenumInfo, rest?: Teller) {

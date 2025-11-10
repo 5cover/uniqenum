@@ -40,15 +40,13 @@ export const measureLength = (teller: Teller): number => {
 export const writeStream = (stream: WriteStream, f: (w: Writer) => void, limit = 8192): number => {
     let pending = 0;
     let total = 0;
-    stream.cork();
+    //stream.cork();
     const w: Writer = o => {
-        if (o === undefined) return w;
+        if (!o) return w;
         if (typeof o === 'string') {
             stream.write(o);
             pending += o.length;
             if (pending >= limit) {
-                stream.uncork();
-                stream.cork(); // reopen cork for next batch
                 total += pending;
                 pending = 0;
             }
@@ -60,7 +58,7 @@ export const writeStream = (stream: WriteStream, f: (w: Writer) => void, limit =
     try {
         f(w);
     } finally {
-        stream.uncork(); // flush remaining data automatically
+        //stream.uncork(); // flush remaining data automatically
         total += pending;
     }
     return total;

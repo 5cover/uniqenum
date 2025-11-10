@@ -1,8 +1,7 @@
 import fs from 'fs-extra';
 import type { UniqenumSpec } from './types.js';
 import type { CodeGenerator } from './CodeGenerator.js';
-import * as g from './g.js';
-import { lengthWriter, logWriter, measureLength, writeStream } from './writing.js';
+import { measureLength, writeStream } from './writing.js';
 import path from 'path';
 /*
 Writer -- output strategy of the generation algorithm
@@ -52,38 +51,22 @@ export class FileWriter {
     ) {}
 
     generateAreuniq() {
-        let fileNStart = this.spec.N.start;
-        let fileNEnd = this.spec.N.start;
-        let fileIndex = 0;
         fs.ensureDirSync(this.cfg.outputDir);
         let n = this.spec.N.start;
+        let nEnd = n - 1;
         while (n <= this.spec.N.end) {
-            const deps = new Set<string>();
-            const name = path.resolve(this.cfg.outputDir, sourceFilename('areuniq', fileNStart, fileNEnd));
-            const stream = fs.createWriteStream(name, { flush: true });
+            nEnd = this.headerEndNareuniq(n, nEnd);
+            const inclGuard = this.getIncludeGuard('AREUNIQ', n, nEnd);
+            writeStream(fs.createWriteStream(path.resolve(this.cfg.outputDir, sourceFilename('areuniq', n, nEnd))), w => {
+                w(inclGuard.start);
+                w(this.includes(n, nEnd));
+                this.filesAreuniq.push(n);
+                while (n++ <= nEnd) {
+                    this.cgen.areuniq(n)(w);
+                }
+                w(inclGuard.end);
+            });
 
-            const inclGuard = getIncludeGuard(this.cfg.includeGuards, 'AREUNIQ', fileIndex++);
-            stream.write(inclGuard.start);
-
-            let fileSize = inclGuard.start.length + inclGuard.end.length + this.areuniqSize(deps, n);
-            do {
-                logWriter(this.cgen.areuniq(n))
-                /* writeStream(stream, this.cgen.areuniq(n)); */
-                // each n depends on floor(2n/3) and ceil(2n/3)
-                ++fileNEnd;
-                ++n;
-                fileSize += this.areuniqSize(deps, n);
-            } while (n <= this.spec.N.end && fileSize <= this.cfg.maxFileSize);
-
-            stream.write(inclGuard.end);
-            /* stream.close(
-                ((name, newName) => () => {
-                    fs.rmSync(newName, { force: true });
-                    fs.moveSync(name, newName);
-                })(name, sourceFilename('areuniq', fileNStart, fileNEnd))
-            ); */
-            this.filesAreuniq.push(fileNStart);
-            fileNStart = fileNEnd = fileNEnd + 1;
         }
     }
 
@@ -121,49 +104,88 @@ export class FileWriter {
         );
     }
 
-    /*private headerMaxN(nMinPrevious: number, nMaxPrevious: number, limit: number) {
-        let lo = nMaxPrevious,
-            // we know header macro count decreases as macro gets bigger and bigger, therefore the amount of macros in the new header will be smaller than the amount of macros in the previous header.
-            hi = nMinPrevious + nMaxPrevious;
+    private headerEndNareuniq(nMinPrevious: number, nMaxPrevious: number) {
+        const nStart = nMaxPrevious + 1;
+        // inc upper bound
+        let nEnd = nStart;
+        // we know header macro count decreases as macro gets bigger and bigger, therefore the amount of macros in the new header will be smaller than the amount of macros in the previous header.
+        /*    hi = nMinPrevious + nMaxPrevious;
 
         // Binary search between lo and hi
         while (lo < hi) {
             const mid = Math.floor((lo + hi + 1) / 2);
             const sum = this.headerSize(nMinPrevious, mid); // cumulative from nMin→mid
-            if (sum <= limit) lo = mid;
+            if (sum <= limit) lo = mid;d
             else hi = mid - 1;
+        }*/
+
+        let size = 0;
+        let macroSize = 0;
+        do {
+            nEnd++;
+            macroSize += this.cgen.areuniqSize(nEnd);
+            size =
+                includeGuardSize(this.getIncludeGuard('AREUNIQ', nStart, nEnd)) +
+                this.includes(nStart, nEnd).length +
+                macroSize;
+        } while (nEnd < this.spec.N.end && size <= this.cfg.maxFileSize);
+
+        return nEnd; // N_max
+    }
+
+    private includes(nStart: number, nEnd: number): string {
+        const nDepStart = Math.floor((2 * nStart) / 3);
+        const nDepEnd = Math.ceil((2 * nEnd) / 3);
+        const s = (nStart: number, nStartNext?: number | null) =>
+            include(sourceFilename('areuniq', nStart, (nStartNext ?? this.spec.N.end + 1) - 1));
+        // how many files  is nDepStart..nDepEnd spread across?
+        let includes = '';
+        let prevStart = this.spec.N.start;
+        let i = 0;
+        while (this.filesAreuniq[i]! < nDepStart) ++i;
+        for (; i < this.filesAreuniq.length && this.filesAreuniq[i]! < nDepEnd; ++i) {
+            const nStart = this.filesAreuniq[i]!;
+            includes += s(prevStart, nStart);
+            prevStart = nStart;
         }
+        return includes;
+    }
 
-        return lo; // N_max
-    }*/
-}
-
-function getIncludeGuard(strat: IncludeGuardStrategy, prefix: 'AREUNIQ' | 'UNIQENUM', fileIndex: number): IncludeGuard {
-    switch (strat) {
-        case 'classic':
-            const guardName = prefix + fileIndex;
-            return {
-                end: '#endif',
-                start: `#ifndef ${guardName}\n#define ${guardName}\n`,
-            };
-        case 'omit':
-            return {
-                start: '',
-                end: '',
-            };
-        case 'pragmaOnce': {
-            return {
-                start: '#pragma once\n',
-                end: '',
-            };
+    private getIncludeGuard(prefix: 'AREUNIQ' | 'UNIQENUM', nStart: number, nEnd: number): IncludeGuard {
+        switch (this.cfg.includeGuards) {
+            case 'classic':
+                const guardName = sourceName(prefix, nStart, nEnd);
+                return {
+                    end: '#endif',
+                    start: `#ifndef ${guardName}\n#define ${guardName}\n`,
+                };
+            case 'omit':
+                return {
+                    start: '',
+                    end: '',
+                };
+            case 'pragmaOnce': {
+                return {
+                    start: '#pragma once\n',
+                    end: '',
+                };
+            }
         }
     }
 }
 
 function sourceFilename(prefix: string, nStart: number, nEnd: number) {
-    return `${prefix}${nStart}_${nEnd}.h`;
+    return `${sourceName(prefix, nStart, nEnd)}.h`;
 }
 
-function includeCost(fileName: string) {
-    return '#include""\n'.length + fileName.length;
+function sourceName(prefix: string, nStart: number, nEnd: number) {
+    return `${prefix}${nStart}_${nEnd}`;
+}
+
+function includeGuardSize(guard: IncludeGuard) {
+    return guard.end.length + guard.start.length;
+}
+
+function include(name: string) {
+    return `#include"${name}"\n`;
 }

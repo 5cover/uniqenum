@@ -45,6 +45,10 @@ function generateUniqenum(spec: Readonly<UniqenumSpec>, _: CodeWriter): void {
         }, */
         assert: { when: 'once', msg: ['duplicate enum values: ', { ref: 'name' }, ' ', { ref: 'type' }] },
     });
-    const writer = new FileWriter({ maxFileSize: 256 * 1024, outputDir: 'out', includeGuards: 'classic' }, spec, generator);
+    const writer = new FileWriter(
+        { maxFileSize: 256 * 1024, outputDir: 'out', includeGuards: 'classic' },
+        spec,
+        generator
+    );
     writer.generateAreuniq();
 }
