@@ -65,7 +65,7 @@ export const cstring: Builder<string, { code: string; instr: boolean }> = {
  * This function returns the escaped fragment (no surrounding quotes) and may
  * insert string-concat quotes ("") when necessary (the "split" option).
  */
-const escapeCString = new StableCache((src: string) => {
+export const escapeCString = new StableCache((src: string) => {
     let s = '';
     for (let i = 0; i < src.length; ++i) {
         const c = src.charCodeAt(i);

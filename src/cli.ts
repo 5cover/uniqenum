@@ -6,6 +6,8 @@ import { safeParseInt, throwf } from './util.js';
 import { stdout } from 'process';
 import type { CodeConfigNames } from './CodeConfig.js';
 
+generateUniqenum({A:127,D:200,N:{start:1,end:10}});
+
 program
     .name('uniqenum')
     .description('Unique enum C meta-programming macro family.')
@@ -13,18 +15,14 @@ program
     .action((n1, n2) => {
         // n1 : 1 n1
         // n1 n2 : n1 n2
-        generateUniqenum(
-            {
-                A: 127,
-                D: 200,
-                N: {
-                    start: n1 ? intarg(n1) : 1,
-                    end: intarg(n2 ?? n1),
-                },
+        generateUniqenum({
+            A: 127,
+            D: 200,
+            N: {
+                start: n1 ? intarg(n1) : 1,
+                end: intarg(n2 ?? n1),
             },
-            new StreamWriter(stdout)
-            //new FileWriter(256 * 1024, 'out')
-        );
+        });
     })
     .parse();
 
@@ -32,7 +30,7 @@ function intarg(arg?: string) {
     return safeParseInt(arg) ?? throwf(new Error(`argument must be an number: ${arg}`));
 }
 
-function generateUniqenum(spec: Readonly<UniqenumSpec>, _: CodeWriter): void {
+function generateUniqenum(spec: UniqenumSpec): void {
     const readableNames: CodeConfigNames = {
         areuniq: ['areuniq', { ref: 'n' }],
         uniqenum: ['uniqenum', { ref: 'n' }],
@@ -45,10 +43,13 @@ function generateUniqenum(spec: Readonly<UniqenumSpec>, _: CodeWriter): void {
         }, */
         assert: { when: 'once', msg: ['duplicate enum values: ', { ref: 'name' }, ' ', { ref: 'type' }] },
     });
-    const writer = new FileWriter(
-        { maxFileSize: 256 * 1024, outputDir: 'out', includeGuards: 'classic' },
-        spec,
-        generator
-    );
+
+    // const writer = new FileWriter(
+    //     { maxFileSize: 256 * 1024, outputDir: 'out', includeGuards: 'classic' },
+    //     spec,
+    //     generator
+    // );
+    const writer = new StreamWriter(stdout, spec, generator);
+
     writer.generateAreuniq();
 }

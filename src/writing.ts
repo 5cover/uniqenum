@@ -31,6 +31,16 @@ export const measureLength = (teller: Teller): number => {
     lengthWriter(result)(teller);
     return result.length;
 };
+export const aggregateWrites = (teller: Teller): string[] => {
+    const writes: string[] = [];
+    stringWriter(writes)(teller)
+    return writes;
+}
+
+export const streamWriter = (stream: NodeJS.WritableStream): Writer => {
+    const w: Writer = o => (o === undefined ? w : typeof o === 'string' ? (stream.write(o), w) : o(w));
+    return w;
+}
 
 /**
  * Writes to a stream

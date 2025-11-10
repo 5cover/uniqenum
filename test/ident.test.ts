@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from "node:test";
-import { ident, scopedIdentFn, identAntecedent, identLength } from '../src/ident.js';
+import { ident, scopedIdentFn, identAntecedent, identLength, identAntecedentAssert } from '../src/ident.js';
 import * as g from '../src/g.js';
 import { stdin } from 'node:process';
 import * as readline from 'node:readline/promises';
 
 describe('ident module', () => {
     it('skips banned ident', () => {
-        const ident = scopedIdentFn(new Set<string>().add('c'));
+        const ident = scopedIdentFn(['c'].map(identAntecedentAssert));
         const expected = ['a', 'b', 'd', 'e'];
         assert.deepEqual(
             [...g.seq(expected.length, i => ident(i))],
@@ -20,14 +20,14 @@ describe('ident module', () => {
     });
     
     it('skips banned ident when the skipper has already been accessed', () => {
-        const ident = scopedIdentFn(new Set<string>().add('b'));
+        const ident = scopedIdentFn(['b'].map(identAntecedentAssert));
         assert.equal(ident(0), 'a')
         assert.equal(ident(2), 'd')
         assert.equal(ident(1), 'c')
     });
 
     it('skips banned idents', () => {
-        const ident = scopedIdentFn(new Set<string>().add('a').add('c').add('d'));
+        const ident = scopedIdentFn(['a','c','d'].map(identAntecedentAssert));
         const expected = ['b', 'e', 'f', 'g'];
         assert.deepEqual(
             [...g.seq(expected.length, ident)],
@@ -40,7 +40,7 @@ describe('ident module', () => {
     });
 
     it('skips more banned idents', () => {
-        const ident = scopedIdentFn(new Set<string>().add('b').add('c').add('d').add('e'));
+        const ident = scopedIdentFn(['b','c','d','e'].map(identAntecedentAssert));
         const expected = ['a', 'f', 'g', 'h'];
         assert.deepEqual(
             [...g.seq(expected.length, ident)],

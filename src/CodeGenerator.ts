@@ -186,7 +186,7 @@ function defineMacro(name: string, params: Iterable<string>, body: Teller) {
     return (o: Writer) => o('#define ')(callMacro(name, params))(body)('\n');
 }
 
-function callMacro(name: string, args: Iterable<string>) {
+function callMacro(name: string, args: Iterable<string>): Teller {
     return (o: Writer) => o(name)('(')(join(',', args, x => x))(')');
 }
 

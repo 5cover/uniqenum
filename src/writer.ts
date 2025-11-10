@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import type { UniqenumSpec } from './types.js';
 import type { CodeGenerator } from './CodeGenerator.js';
-import { measureLength, writeStream } from './writing.js';
+import { logWriter, measureLength, streamWriter, writeStream } from './writing.js';
 import path from 'path';
 /*
 Writer -- output strategy of the generation algorithm
@@ -11,14 +11,20 @@ FilesWriter -> write all to files, with optional binning of uniqenum files cappi
 */
 
 export interface CodeWriter {
-    writeAreuniq(n: number, code: string): void;
-    writeUniquenum(n: number, code: string): void;
+    generateAreuniq(n: number, code: string): void;
 }
 
 export class StreamWriter implements CodeWriter {
-    constructor(private readonly stream: NodeJS.WritableStream) {}
-    writeAreuniq(n: number, code: string): void {
-        this.stream.write(code);
+    constructor(
+        private readonly stream: NodeJS.WritableStream,
+        private readonly spec: UniqenumSpec,
+        private readonly cgen: CodeGenerator
+    ) {}
+    generateAreuniq() {
+        const w = logWriter;
+        for (let n = this.spec.N.start; n <= this.spec.N.end; ++n) {
+            this.cgen.areuniq(n)(w);
+        }
     }
     writeUniquenum(n: number, code: string): void {
         this.stream.write(code);
@@ -57,16 +63,18 @@ export class FileWriter {
         while (n <= this.spec.N.end) {
             nEnd = this.headerEndNareuniq(n, nEnd);
             const inclGuard = this.getIncludeGuard('AREUNIQ', n, nEnd);
-            writeStream(fs.createWriteStream(path.resolve(this.cfg.outputDir, sourceFilename('areuniq', n, nEnd))), w => {
-                w(inclGuard.start);
-                w(this.includes(n, nEnd));
-                this.filesAreuniq.push(n);
-                while (n++ <= nEnd) {
-                    this.cgen.areuniq(n)(w);
+            writeStream(
+                fs.createWriteStream(path.resolve(this.cfg.outputDir, sourceFilename('areuniq', n, nEnd))),
+                w => {
+                    w(inclGuard.start);
+                    w(this.includes(n, nEnd));
+                    this.filesAreuniq.push(n);
+                    while (n++ <= nEnd) {
+                        this.cgen.areuniq(n)(w);
+                    }
+                    w(inclGuard.end);
                 }
-                w(inclGuard.end);
-            });
-
+            );
         }
     }
 
