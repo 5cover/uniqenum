@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import type { UniqenumSpec } from './types.js';
 import type { CodeGenerator } from './CodeGenerator.js';
-import { logWriter, measureLength, streamWriter, writeStream } from './writing.js';
+import { measureLength, streamWriter, writeStream } from './writing.js';
 import path from 'path';
 /*
 Writer -- output strategy of the generation algorithm
@@ -21,7 +21,7 @@ export class StreamWriter implements CodeWriter {
         private readonly cgen: CodeGenerator
     ) {}
     generateAreuniq() {
-        const w = logWriter;
+        const w = streamWriter(this.stream);
         for (let n = this.spec.N.start; n <= this.spec.N.end; ++n) {
             this.cgen.areuniq(n)(w);
         }
