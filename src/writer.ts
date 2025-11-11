@@ -1,11 +1,10 @@
-import { createWriteStream } from 'fs';
+import { closeSync, openSync } from 'fs';
 import { ensureDirSync } from 'fs-extra';
 import type { CodeGenerator } from './CodeGenerator.js';
-import { LengthWriter, StreamWriter, StringWriter, type Writer } from './writing.js';
+import { LengthWriter, FdWriter, StringWriter, type Writer } from './writing.js';
 import path from 'path';
 import type { range } from './types.js';
 import { intersectingRanges, R } from './util.js';
-import { log } from 'console';
 
 export interface FileWriterConfig {
     maxFileSize: number;
@@ -44,8 +43,8 @@ export class FilesWriter {
             N: this.cfg.N,
             path: N => path.resolve(this.cfg.outputDir, StringWriter.ret(sourceFilename, 'areuniq', N)),
             endN: this.areuniqNend,
-            start: N => this.areuniqFiles.push(N.start),
             body: (w, N) => {
+                this.areuniqFiles.push(N.start);
                 this.inclGuard.start(w, 'AREUNIQ', N);
                 this.includes(w, this.areuniqIncludes(N));
                 let n = N.start;
@@ -177,8 +176,7 @@ interface WriteFilesSpec {
     N: range;
     path: (N: Readonly<range>) => string;
     endN: (previousEndN: number) => number | null;
-    start?: (N: Readonly<range>) => void;
-    body: (w: StreamWriter, N: Readonly<range>) => Writer;
+    body: (w: FdWriter, N: Readonly<range>) => Writer;
 }
 
 function writeFiles(cfg: WriteFilesSpec) {
@@ -193,10 +191,12 @@ function writeFiles(cfg: WriteFilesSpec) {
         } else {
             N.end = nEndOrNull;
         }
-        const w = new StreamWriter(createWriteStream(cfg.path(N)));
-        cfg.body(w, N);
-        cfg.start?.(N);
-        w.end();
+        const fd = openSync(cfg.path(N), 'w');
+        try {
+            cfg.body(new FdWriter(fd), N);
+        } finally {
+            closeSync(fd);
+        }
         N.start = N.end + 1;
     }
     return N.end;

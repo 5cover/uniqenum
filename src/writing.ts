@@ -1,4 +1,4 @@
-import type { WriteStream } from 'fs';
+import { writeSync } from 'fs';
 
 type Falsey = undefined | null | false;
 
@@ -42,7 +42,7 @@ export class StringWriter extends Writer<string> {
 
     private static readonly static = new StringWriter();
     static ret<TArgs extends unknown[]>(f: Teller<TArgs>, ...args: TArgs): string {
-        f?.(StringWriter.static, ...args)
+        f?.(StringWriter.static, ...args);
         const s = StringWriter.static.toString();
         StringWriter.static.reset();
         return s;
@@ -119,19 +119,12 @@ export class LengthWriter extends Writer<number> {
     }
 }
 
-export class StreamWriter extends Writer<string> {
+export class FdWriter extends Writer<string> {
     constructor(
-        private readonly stream: WriteStream,
-        private readonly cfg: { flushEvery?: number; end?: boolean } = {}
+        private readonly fd: number,
     ) {
         super();
-        this.limit = cfg.flushEvery ?? Infinity;
     }
-    private readonly limit: number;
-    private pending = 0;
-    private total = 0;
-    
-    private corked = false;
     private saved?: string[];
 
     override int(n: number): this {
@@ -139,10 +132,6 @@ export class StreamWriter extends Writer<string> {
     }
     override str(s: string | undefined | null): this {
         return s ? this.write(s) : this;
-    }
-
-    get bytesWritten() {
-        return this.total;
     }
 
     override save<TArgs extends unknown[]>(f: Teller<TArgs>, ...args: TArgs): string {
@@ -169,28 +158,12 @@ export class StreamWriter extends Writer<string> {
 
     private write(s: string): this {
         this.saved?.push(s);
-        if (isFinite(this.limit)) this.ensureCorked();
-        this.stream.write(s);
-        this.pending += s.length;
-        this.total += s.length;
-        if (this.pending >= this.limit) {
-            this.pending = 0;
-            this.stream.uncork();
-            this.corked = false;
-            setImmediate(this.ensureCorked);
-        }
+        writeSync(this.fd, s);
         return this;
     }
+}
 
-    end(): void {
-        if (this.corked) this.stream.uncork();
-        if (this.cfg.end) this.stream.end();
-    }
-
-    readonly ensureCorked = () => {
-        if (!this.corked) {
-            this.stream.cork();
-            this.corked = true;
-        }
-    };
+function safeWrite(stream: NodeJS.WritableStream, chunk: string) {
+    if (stream.write(chunk)) return Promise.resolve();
+    return new Promise<void>(resolve => stream.once('drain', resolve));
 }
