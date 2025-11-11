@@ -1,10 +1,4 @@
-import {
-    scopedIdentFn,
-    ident as pureIdent,
-    type IdentFn,
-    identAntecedent,
-    identAntecedentAssert,
-} from './ident.js';
+import { scopedIdentFn, ident as pureIdent, type IdentFn, identAntecedent, identAntecedentAssert } from './ident.js';
 import * as g from './g.js';
 import { type CodeConfig } from './CodeConfig.js';
 import * as fmt from './format.js';
@@ -62,37 +56,42 @@ export class C11CodeGenerator extends CodeGenerator {
             return this.genAreuniq(n, this.pair(0, 1));
         }
 
-        const k = 3;
-
         // we should estimate the cost of using cliques before going through with it. example
         // areuniq3(a,b,c)areuniq2(a,b)*areuniq2(a,c)*areuniq2(b,c)
         // areuniq3(a,b,c)((a)!=(b))*((a)!=(c))*((b)!=(c))
         // second version is shorter, the macro call isn't worth it
         // implementation: don't precompute  the size: generate using both methods and pick shortest, and since size grows monotonically, we can optimize by remembering the smallest n at which expanded > clique
+
+        if (n >= this.pivotNcliqueSmaller) return this.areuniqCliques(n);
+
+        // calculate expanded cost, see if smaller, update pivot
+        const expandedCost = measureLength(this.areuniqExpanded(n));
+        const cliqueCost = measureLength(this.areuniqCliques(n));
+        if (expandedCost < cliqueCost) {
+            this.pivotNcliqueSmaller = n;
+            return this.areuniqCliques(n);
+        }
+        return this.areuniqExpanded(n);
+    }
+
+    private areuniqCliques(n: number) {
+        const k = 3;
         const cliques = this.partitionCliques(n, k);
         const ident = scopedIdentFn(cliques.map(([name]) => name.i).filter(i => i !== null));
-        const cliqueMacro = this.genAreuniq(
+        return this.genAreuniq(
             n,
             join(this.cfg.assert.when === 'all' ? ';' : '*', cliques, ([name, clique]) =>
                 callMacro(name.ident, g.map(clique, ident))
             ),
             ident
         );
-        if (n >= this.pivotNcliqueSmaller) return cliqueMacro;
+    }
 
-        
-        const expandedMacro = this.genAreuniq(
+    private areuniqExpanded(n: number) {
+        return this.genAreuniq(
             n,
             join('*', g.combinations(n), ([a, b]) => this.pair(a, b))
         );
-        // calculate expanded cost, see if smaller, update pivot
-        const expandedCost = measureLength(expandedMacro);
-        const cliqueCost = measureLength(cliqueMacro);
-        if (expandedCost < cliqueCost) {
-            this.pivotNcliqueSmaller = n;
-            return cliqueMacro;
-        }
-        return expandedMacro;
     }
 
     override areuniqSize(n: number): number {

@@ -24,7 +24,8 @@ export const lengthWriter = (result: { length: number }): Writer => {
     return w;
 };
 
-export const logWriter: Writer = o => (o === undefined ? logWriter : typeof o === 'string' ? (console.log('write', o.length, o), logWriter) : o(logWriter));
+export const logWriter: Writer = o =>
+    o === undefined ? logWriter : typeof o === 'string' ? (console.log('write', o.length, o), logWriter) : o(logWriter);
 
 export const measureLength = (teller: Teller): number => {
     const result = { length: 0 };
@@ -33,32 +34,50 @@ export const measureLength = (teller: Teller): number => {
 };
 export const aggregateWrites = (teller: Teller): string[] => {
     const writes: string[] = [];
-    stringWriter(writes)(teller)
+    stringWriter(writes)(teller);
     return writes;
-}
+};
 
 export const streamWriter = (stream: NodeJS.WritableStream): Writer => {
     const w: Writer = o => (o === undefined ? w : typeof o === 'string' ? (stream.write(o), w) : o(w));
     return w;
-}
+};
 
 /**
  * Writes to a stream
  *
  * @returns The number of bytes written.
  */
-export const writeStream = (stream: WriteStream, f: (w: Writer) => void, limit = 8192): number => {
+
+export const writeStream = (
+    stream: WriteStream,
+    f: (w: Writer) => void,
+    opts: { limit?: number; end?: boolean } = {}
+): number => {
+    const limit = opts.limit ?? 16384;
     let pending = 0;
     let total = 0;
-    //stream.cork();
+    let corked = false;
+
+    const ensureCorked = () => {
+        if (!corked) {
+            stream.cork();
+            corked = true;
+        }
+    };
+
     const w: Writer = o => {
-        if (!o) return w;
+        if (o === undefined) return w;
         if (typeof o === 'string') {
+            ensureCorked();
             stream.write(o);
             pending += o.length;
             if (pending >= limit) {
                 total += pending;
                 pending = 0;
+                stream.uncork();
+                corked = false;
+                setImmediate(ensureCorked);
             }
             return w;
         }
@@ -68,8 +87,10 @@ export const writeStream = (stream: WriteStream, f: (w: Writer) => void, limit =
     try {
         f(w);
     } finally {
-        //stream.uncork(); // flush remaining data automatically
         total += pending;
+        if (corked) stream.uncork();
+        if (opts.end) stream.end();
     }
+
     return total;
 };
