@@ -42,13 +42,7 @@ export function ident(i: number): string {
  * Throws if `s` contains a character not in the alphabet.
  * @returns a number i as ident(i)===s, or null if s is not an ident
  */
-export function identAntecedent(s: string | Teller): number | null {
-    if (typeof s !== 'string') {
-        const result = { i: null };
-        s(writeIdentAntecedent(result));
-        return result.i;
-    }
-
+export function identAntecedent(s: string): number | null {
     if (s.length === 0) return null;
 
     const L = s.length;
@@ -67,42 +61,6 @@ export function identAntecedent(s: string | Teller): number | null {
     const base = (F * (B ** (L - 1) - 1)) / (B - 1);
 
     return base + firstIdx * B ** (L - 1) + value;
-}
-
-function writeIdentAntecedent(result: { i: number | null }): Writer {
-    let pos = 0;
-    let value = 0;
-    let firstIdx: number | undefined;
-    let length = 0;
-
-    const w: Writer = o => {
-        if (o === undefined) return w;
-        if (typeof o === 'string') {
-            for (const c of o) {
-                const idx = char2n.get(c);
-                if (idx === undefined) {
-                    result.i = null;
-                    return w;
-                }
-                if (pos === 0) {
-                    firstIdx = idx;
-                } else {
-                    value = value * B + idx;
-                }
-                pos++;
-            }
-            length += o.length;
-            if (firstIdx !== undefined) {
-                // number of identifiers with shorter length
-                const base = (F * (B ** (length - 1) - 1)) / (B - 1);
-                result.i = base + firstIdx * B ** (length - 1) + value;
-            }
-            return w;
-        }
-        return o(w);
-    };
-
-    return w;
 }
 
 const LN63 = Math.log(63);

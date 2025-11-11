@@ -1,4 +1,4 @@
-import type { Range } from "./types.js";
+import type { range } from "./types.js";
 
 export function* combinations(n: number): Generator<[number, number], void, void> {
     for (let i = 0; i < n; ++i) {
@@ -12,7 +12,7 @@ export function* seq<T>(length: number, map: (i: number) => T): Generator<T, voi
     for (let i = 0; i < length; ++i) yield map(i);
 }
 
-export function* range<T>(range: Range): Generator<number, void, void> {
+export function* range<T>(range: range): Generator<number, void, void> {
     for (let i = range.start; i < range.end; ++i) yield i;
 }
 

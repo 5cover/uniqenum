@@ -2,7 +2,7 @@ import { scopedIdentFn, ident as pureIdent, type IdentFn, identAntecedent, ident
 import * as g from './g.js';
 import { type CodeConfig } from './CodeConfig.js';
 import * as fmt from './format.js';
-import { type Writer, type Teller, join, measureLength } from './writing.js';
+import { LengthWriter, type Writer, type Teller } from './writing.js';
 import { StableCache } from './StableCache.js';
 
 export abstract class CodeGenerator {
@@ -15,8 +15,7 @@ export abstract class CodeGenerator {
      * Invariant: uniqenum(n + m) >= uniqenum(n)
      * Invariant: uniqenum(n) is pure
      */
-    abstract uniqenum(n: number): Teller;
-    abstract uniqenumSize(n: number): number;
+    abstract readonly uniqenum: (w: Writer, n: number) => Writer;
     /**
      * Generate the Areuniq macro.
      * @param {number} n
@@ -25,8 +24,7 @@ export abstract class CodeGenerator {
      * Invariant: areuniq(n) is pure
      *
      */
-    abstract areuniq(n: number): Teller;
-    abstract areuniqSize(n: number): number;
+    abstract readonly areuniq: (w: Writer, n: number) => Writer;
 }
 
 const iaEnum = identAntecedentAssert('enum');
@@ -47,13 +45,13 @@ export class C11CodeGenerator extends CodeGenerator {
         };
     });
 
-    areuniq(n: number): Teller {
+    readonly areuniq = (w: Writer, n: number) => {
         // useless under 2
-        if (n < 2) return o => o;
+        if (n < 2) return w;
 
         // trivial base case
         if (n === 2) {
-            return this.genAreuniq(n, this.pair(0, 1));
+            return this.genAreuniq(w, n, w => this.pair(w, 0, 1));
         }
 
         // we should estimate the cost of using cliques before going through with it. example
@@ -62,62 +60,62 @@ export class C11CodeGenerator extends CodeGenerator {
         // second version is shorter, the macro call isn't worth it
         // implementation: don't precompute  the size: generate using both methods and pick shortest, and since size grows monotonically, we can optimize by remembering the smallest n at which expanded > clique
 
-        if (n >= this.pivotNcliqueSmaller) return this.areuniqCliques(n);
+        if (n >= this.pivotNcliqueSmaller) return this.areuniqCliques(w, n);
 
         // calculate expanded cost, see if smaller, update pivot
-        const expandedCost = measureLength(this.areuniqExpanded(n));
-        const cliqueCost = measureLength(this.areuniqCliques(n));
+        const cliqueCost = LengthWriter.ret(this.areuniqCliques, n);
+        const expandedCost = LengthWriter.ret(this.areuniqExpanded, n);
         if (expandedCost < cliqueCost) {
             this.pivotNcliqueSmaller = n;
-            return this.areuniqCliques(n);
+            return this.areuniqCliques(w, n);
         }
-        return this.areuniqExpanded(n);
+        return this.areuniqExpanded(w, n);
     }
 
-    private areuniqCliques(n: number) {
+    private readonly areuniqCliques = (w: Writer, n: number) => {
         const k = 3;
         const cliques = this.partitionCliques(n, k);
         const ident = scopedIdentFn(cliques.map(([name]) => name.i).filter(i => i !== null));
         return this.genAreuniq(
+            w,
             n,
-            join(this.cfg.assert.when === 'all' ? ';' : '*', cliques, ([name, clique]) =>
-                callMacro(name.ident, g.map(clique, ident))
-            ),
+            w =>
+                w.join(this.cfg.assert.when === 'all' ? ';' : '*', cliques, (w, [name, clique]) =>
+                    callMacro(w, name.ident, g.map(clique, ident))
+                ),
             ident
         );
     }
 
-    private areuniqExpanded(n: number) {
-        return this.genAreuniq(
-            n,
-            join('*', g.combinations(n), ([a, b]) => this.pair(a, b))
-        );
+    private readonly areuniqExpanded = (w: Writer, n: number) => {
+        return this.genAreuniq(w, n, w => w.join('*', g.combinations(n), (w, [a, b]) => this.pair(w, a, b)));
     }
 
-    override areuniqSize(n: number): number {
-        return measureLength(this.areuniq(n));
+    private readonly pair = (w: Writer, i1: number, i2: number) => {
+        const enumerator1 = pureIdent(i1);
+        const enumerator2 = pureIdent(i2);
+        return this.cfg.assert.when === 'all'
+            ? w
+                  .str('_Static_assert(')
+                  .str('((')
+                  .str(enumerator1)
+                  .str(')!=(')
+                  .str(enumerator2)
+                  .str('))')
+                  .str(',')
+                  .str(fmt.format(fmt.cstring, this.cfg.assert.msg, { enumerator1, enumerator2 }))
+                  .str(')')
+            : w.str('((').str(enumerator1).str(')!=(').str(enumerator2).str('))');
+    }
+    private readonly genAreuniq = (w: Writer, n: number, body: Teller, ident = pureIdent) => {
+        return defineMacro(w, this.nameAreuniq.get(n).ident, g.seq(n, ident), body);
     }
 
-    private pair(i1: number, i2: number) {
-        return (o: Writer) => {
-            const enumerator1 = pureIdent(i1);
-            const enumerator2 = pureIdent(i2);
-            return this.cfg.assert.when === 'all'
-                ? o('_Static_assert(')('((')(enumerator1)(')!=(')(enumerator2)('))')(',')(
-                      fmt.format(fmt.string, this.cfg.assert.msg, { enumerator1, enumerator2 })
-                  )(')')
-                : o('((')(enumerator1)(')!=(')(enumerator2)('))');
-        };
-    }
-    private genAreuniq(n: number, body: Teller, ident = pureIdent) {
-        return defineMacro(this.nameAreuniq.get(n).ident, g.seq(n, ident), body);
-    }
-
-    uniqenum(n: number): Teller {
-        if (n < 1) return o => o;
+    readonly uniqenum = (w: Writer, n: number) => {
+        if (n < 1) return w;
         const nameUniqenum = fmt.format(fmt.string, this.cfg.names.uniqenum, { n: n.toString() });
         if (n === 1) {
-            return this.genUniqenum(nameUniqenum, new UniqenumInfo(n, pureIdent));
+            return this.genUniqenum(w, nameUniqenum, new UniqenumInfo(n, pureIdent));
         }
 
         const scope = [iaEnum];
@@ -127,33 +125,40 @@ export class C11CodeGenerator extends CodeGenerator {
             if (null !== (ia = identAntecedent(this.nameAreuniq.get(n).ident))) scope.push(ia);
         }
         const info = new UniqenumInfo(n, scopedIdentFn(scope));
-        const areuniqCall = callMacro(this.nameAreuniq.get(n).ident, info.keys());
-        return this.genUniqenum(nameUniqenum, info, o =>
+        const a1 = this.nameAreuniq.get(n).ident;
+        const a2 = info.keys();
+        return this.genUniqenum(w, nameUniqenum, info, w =>
             this.cfg.assert.when === 'all'
-                ? o(';')(areuniqCall)
-                : o(';_Static_assert(')(areuniqCall)(
-                      fmt.format(fmt.string, this.cfg.assert.msg, {
-                          n: n.toString(),
-                          name: info.name,
-                          type: info.type,
-                      })
-                  )
+                ? callMacro(w.str(';'), a1, a2)
+                : callMacro(w.str(';_Static_assert('), a1, a2)
+                      .str(',')
+                      .str(
+                          fmt.format(fmt.cstring, this.cfg.assert.msg, {
+                              n: n.toString(),
+                              name: info.name,
+                              type: info.type,
+                          })
+                      )
+                      .str(')')
         );
     }
 
-    override uniqenumSize(n: number): number {
-        return measureLength(this.uniqenum(n));
-    }
-
-    private genUniqenum(name: string, info: UniqenumInfo, rest?: Teller) {
-        const body = join(',', g.unzip([info.keys(), info.values()]), x => x.join(' '));
-        return defineMacro(name, info.params(), o => o('enum ')(info.name)('{')(body)('}')(info.type)(rest));
+    private readonly genUniqenum = (w: Writer, name: string, info: UniqenumInfo, rest?: Teller) => {
+        return defineMacro(w, name, info.params(), w => {
+            w.str('enum ')
+                .str(info.name)
+                .str('{')
+                .join(',', g.unzip([info.keys(), info.values()]), (w, x) => w.join(' ', x))
+                .str('}')
+                .str(info.type);
+            rest?.(w);
+        });
     }
 
     /**
      * split graph in k parts of size (node count) n / K + +(i < n % k), i being the subgraph number (the +() parrt allows to account for when n % k != 0)
      */
-    private partitionCliques(n: number, k: number) {
+    private readonly partitionCliques = (n: number, k: number) => {
         if (n < k) {
             throw new Error('n must be greater than K. use a base case.');
         }
@@ -181,12 +186,18 @@ export class C11CodeGenerator extends CodeGenerator {
     }
 }
 
-function defineMacro(name: string, params: Iterable<string>, body: Teller) {
-    return (o: Writer) => o('#define ')(callMacro(name, params))(body)('\n');
+function defineMacro(w: Writer, name: string, params: Iterable<string>, body: Teller) {
+    callMacro(w.str('#define '), name, params);
+    body(w);
+    return w.str('\n');
 }
 
-function callMacro(name: string, args: Iterable<string>): Teller {
-    return (o: Writer) => o(name)('(')(join(',', args, x => x))(')');
+function callMacro(w: Writer, name: string, args: Iterable<string>) {
+    return w
+        .str(name)
+        .str('(')
+        .join(',', args, (w, x) => w.str(x))
+        .str(')');
 }
 
 class UniqenumInfo {
