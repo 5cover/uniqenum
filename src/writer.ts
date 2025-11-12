@@ -144,9 +144,9 @@ export class FilesWriter {
             let N = R(this.areuniqFiles[i]!, this.areuniqFiles[i + 1]! - 1);
             w.str(
                 path.join(
-                    path.relative(currentDir, this.dirof('areuniq', N)).replaceAll('\\', '/'), // keep cross platform path separators
+                    path.relative(currentDir, this.dirof('areuniq', N)),
                     StringWriter.ret(sourceFilename, 'areuniq', N)
-                )
+                ).replaceAll(/\\/g, '/'), // keep cross platform path separators
             );
             w.str('"\n');
         }
