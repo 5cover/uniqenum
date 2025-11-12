@@ -424,4 +424,4 @@ This information is sometimes inferable from context when editing the enum direc
 
 For simplified usage, we will provide self-contained `areuniq`/`uniqenum` headers with a bounded size (with a defined increment of say 128kb) for all N in the interval `[2;R]`
 
-Those headers will be provided in the `grab/` directory and downloadable from GitHub.
+Those headers will be provided in the `samples/` directory and downloadable from GitHub.

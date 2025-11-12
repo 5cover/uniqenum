@@ -16,7 +16,7 @@ type CliOptions = {
     outFile?: string;
     outDir?: string;
     guard: IncludeGuardStrategy;
-    maxSize: number;
+    maxSize?: number;
 };
 
 program
@@ -29,12 +29,7 @@ program
     .option('--no-deps', 'Do not emit areuniq dependencies when uniqenum is selected')
     .option('-o, --out-file <path>', 'Write to a single header file')
     .option('-d, --out-dir <path>', 'Write headers into a sharded directory')
-    .option(
-        '--max-size <bytes>',
-        'Maximum size per generated file when using --out-dir',
-        parsePositiveInt,
-        DEFAULT_MAX_FILE_SIZE
-    )
+    .option('--max-size <bytes>', 'Maximum bytes per output file (flat or directory)', parsePositiveInt)
     .option('-g, --guard <style>', 'Include guard style: classic | pragmaOnce | omit', parseGuard, 'classic')
     .action((startArg, endArg, opts: CliOptions) => {
         const range = buildRange(startArg, endArg);
@@ -50,7 +45,7 @@ program
         });
     });
 
-program.parse();
+program.parse(['--max-size', '1000', '1']);
 
 function buildRange(startArg: string, endArg?: string) {
     const start = parseFiniteInt(startArg, 'Nstart');
@@ -80,7 +75,7 @@ function resolveOutput(opts: Pick<CliOptions, 'outFile' | 'outDir' | 'guard' | '
         return {
             kind: 'directory',
             path: opts.outDir,
-            maxFileSize: opts.maxSize,
+            maxFileSize: opts.maxSize ?? DEFAULT_MAX_FILE_SIZE,
             includeGuards: opts.guard,
         };
     }
@@ -89,12 +84,12 @@ function resolveOutput(opts: Pick<CliOptions, 'outFile' | 'outDir' | 'guard' | '
         return {
             kind: 'file',
             path: opts.outFile,
-            maxFileSize: opts.maxSize,
             includeGuards: opts.guard,
+            maxBytes: opts.maxSize,
         };
     }
 
-    return { kind: 'stdout', includeGuards: opts.guard };
+    return { kind: 'stdout', includeGuards: opts.guard, maxBytes: opts.maxSize };
 }
 
 function parsePositiveInt(value: string): number {

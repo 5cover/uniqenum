@@ -1,12 +1,93 @@
-  # macroaddict
+# uniqenum
 
-Automatic C/C++ preprpocessor macro generation.
+`uniqenum` is a C/C++ preprocessor macro library to enforce uniqueness of enumeration values at compile-time, using static assertions.
 
-## Unique enums
+The code is written using a meta-programming generator written in TypeScript/Node.js.
+
+For quick usage, see the [samples directory](samples/README.md) for pre-generated headers.
+
+## Installation
+
+The CLI and the API are shipped as the same npm package. Install globally for command-line usage, or add it to your project for programmatic generation.
+
+```bash
+npm install -g uniqenum      # CLI
+npm install -D uniqenum      # API within a project
+```
+
+## CLI usage
+
+```sh
+uniqenum <Nstart> [Nend]
+```
+
+- `Nstart` / `Nend` define the inclusive range of arity (`N`) to generate. `Nend` defaults to `Nstart`, and accepts `inf`/`infinity` for open-ended streams.
+- By default, both `areuniq` and `uniqenum` families are emitted. Use `--areuniq` or `--uniqenum` to limit the output.
+- `--no-deps` omits automatic dependency emission. Otherwise `uniqenumN` output always gets a matching `areuniqN`.
+- `-o, --out-file <path>` writes to a single header. `-d, --out-dir <path>` shreds the output into multiple headers (with automatic include tries) honoring `--max-size` per file. When neither is passed, output goes to stdout.
+- `--max-size <bytes>` sets the byte budget when streaming to stdout or a single file (required for unbounded ranges). The directory mode defaults to 256 KiB if you omit it.
+- `-g, --guard <classic|pragmaOnce|omit>` controls the include strategy for flat outputs; directory mode stores guards inside each shard.
+
+Examples:
+
+```sh
+# 1. Stream both families for N=1..64 to stdout
+uniqenum 1 64
+
+# 2. Generate only areuniq headers for N=2..1024 sharded into 128 KiB files
+uniqenum 2 1024 --areuniq -d build/headers --max-size 131072
+
+# 3. Create a single ever-growing header capped at 256 KiB until the limit is reached
+uniqenum 1 inf -o include/uniqenum.h --max-size 262144
+
+# 4. Generate uniqenum only, but still warn when the file exceeds your cap
+uniqenum 4 128 --uniqenum -o uniq128.h --max-size 65536
+```
+
+When both families are selected, the CLI interleaves them (`areuniqN` immediately followed by `uniqenumN`) so every uniqenum macro has a matching dependency in the same file. For finite ranges the generator will emit the whole interval, but will warn whenever the final size exceeds the configured `--max-size` by reporting the overage in bytes.
+
+## API usage
+
+The `generate` function exposes the exact capabilities of the CLI plus additional formatting controls:
+
+```ts
+import { generate } from 'uniqenum';
+
+generate({
+    range: { start: 1, end: Infinity },            // single N or inclusive range
+    macros: ['areuniq', 'uniqenum'],               // pick the families to emit
+    dependencies: 'include',                       // auto-emit areuniq for uniqenum
+    names: {                                       // optional macro name templates
+        areuniq: ['areuniq', { ref: 'n' }],
+        uniqenum: ['uniqenum', { ref: 'n' }],
+    },
+    assert: {                                      // customize assertion style/message
+        when: 'once',
+        msg: ['duplicate enum values: ', { ref: 'name' }, ' ', { ref: 'type' }],
+    },
+    output: {
+        kind: 'file',                              // 'stdout' | 'file' | 'directory'
+        path: 'include/uniqenum.h',
+        includeGuards: 'classic',
+        maxBytes: 256 * 1024,                      // required for unbounded ranges
+    },
+});
+```
+
+Output targets:
+
+- `stdout`: streams directly to the current process output. Accepts `maxBytes` and `includeGuards`.
+- `file`: writes a single header. Directories are created automatically. Requires `maxBytes` for infinite ranges.
+- `directory`: mirrors the CLI sharded writer (`FilesWriter`), splitting output into multiple files with automatic include guards, trie-based layout, and dependency includes. Use `maxFileSize` to limit each shard.
+
+All options are fully typed (see `src/index.ts`) so you get auto-complete inside TypeScript projects. The Samples generator (`samples/gen-samples.ts`) is a minimal script that exercises the API to produce the pre-generated headers committed in this repo.
+
+## Example: Unique enums
 
 ```c
 #include <stdio.h>
-#define uniqenum5(a,b,c,d,e,f,g,h,i,j,k,l)enum k{a=(b),c=(d),e=(f),g=(h),i=(j)}l;_Static_assertenum5(((b)-(d))*((b)-(f))*((b)-(h))*((b)-(j))*((d)-(f))*((d)-(h))*((d)-(j))*((f)-(h))*((f)-(j))*((h)-(j)),"duplicate enum values")
+
+#define uniqenum5(a,b,c,d,e,f,g,h,i,j,k,l)enum k{a=(b),c=(d),e=(f),g=(h),i=(j)}l;_Static_assert(((b)-(d))*((b)-(f))*((b)-(h))*((b)-(j))*((d)-(f))*((d)-(h))*((d)-(j))*((f)-(h))*((f)-(j))*((h)-(j)),"duplicate enum values")
 uniq
 typedef uniqenum5(A1,1,B1,2,C1,3,D1,4,E1,5,E1e,E1t); // typedef enum A{} A  named + typedef
 typedef uniqenum5(A2,1,B2,2,C2,3,D2,4,E2,5,,E2t);    // typedef enum{} A    typedef
@@ -24,15 +105,3 @@ int main()
     return 0;
 }
 ```
-
-## Generation
-
-stack: typescript & Node (speed + high level), NPM package `uniqenum` that outputs C code, and maybe more langs later?
-
-We need the pluggable modules:
-
-- idents: ident function
-- rectangles: triangle method rectangle paving
-- highway: recu
-- ir: abstract representation of the generated
-- codegen: abstract representation and pluggable code generation layer

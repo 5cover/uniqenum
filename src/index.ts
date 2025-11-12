@@ -1,16 +1,10 @@
 import path from 'path';
-import { closeSync, openSync } from 'fs';
+import { closeSync, mkdirSync, openSync } from 'fs';
 import { C11CodeGenerator } from './CodeGenerator.js';
 import type { CodeConfig, CodeConfigNames } from './CodeConfig.js';
 import type { range } from './types.js';
-import {
-    FilesWriter,
-    type IncludeGuardStrategy,
-    type FilesWriterSelection,
-    type FilesWriterResult,
-    createIncludeGuard,
-} from './writer.js';
-import { FdWriter, type Writer } from './writing.js';
+import { FilesWriter, type IncludeGuardStrategy, type FilesWriterResult, createIncludeGuard } from './writer.js';
+import { FdWriter, LengthWriter, type Writer } from './writing.js';
 
 export type { range } from './types.js';
 export type { CodeConfigNames, AssertAllRefs, AssertOnceRefs } from './CodeConfig.js';
@@ -60,14 +54,17 @@ interface BaseOutput {
     includeGuards?: IncludeGuardStrategy;
 }
 
-export interface StdoutOutput extends BaseOutput {
+interface FlatOutput extends BaseOutput {
+    maxBytes?: number;
+}
+
+export interface StdoutOutput extends FlatOutput {
     kind: 'stdout';
 }
 
-export interface FileOutput extends BaseOutput {
+export interface FileOutput extends FlatOutput {
     kind: 'file';
     path: string;
-    maxFileSize?: number;
 }
 
 export interface DirectoryOutput extends BaseOutput {
@@ -89,6 +86,17 @@ export interface GenerationSummary {
 interface MacroSelectionFlags {
     areuniq: boolean;
     uniqenum: boolean;
+}
+
+interface MacroEmission {
+    kind: MacroFamily;
+    n: number;
+    len: number;
+    emit: () => void;
+}
+
+interface SizeTracker {
+    value: number;
 }
 
 export function generate(options: GenerateOptions): GenerationSummary {
@@ -128,7 +136,7 @@ function writeDirectory(
         N: normalizedRange,
     });
 
-    const result = writer.generate(selection as FilesWriterSelection);
+    const result = writer.generate(selection);
     return {
         areuniq: result.areuniq && clampGeneratedRange(result.areuniq, 2),
         uniqenum: result.uniqenum && clampGeneratedRange(result.uniqenum, 1),
@@ -142,51 +150,182 @@ function writeFlat(
     target: StdoutOutput | FileOutput
 ): GenerationSummary {
     const guard = createIncludeGuard(target.includeGuards ?? DEFAULT_INCLUDE_GUARD);
-    const write = (writer: Writer) => {
+    const guardStartLen = LengthWriter.ret(guard.start, 0);
+    const guardEndLen = guard.end.length;
+    const maxBytes = target.maxBytes ?? Infinity;
+
+    if (!Number.isFinite(normalizedRange.end) && !Number.isFinite(maxBytes)) {
+        throw new Error('Generating an unbounded flat output requires a finite maxBytes limit.');
+    }
+
+    const sizeTracker: SizeTracker = { value: guardStartLen };
+
+    const emitTo = (writer: Writer) => {
         guard.start(writer, 0);
-        const summary = emitSequential(generator, selection, normalizedRange, writer);
+        const summary = emitSequentialLimited(
+            generator,
+            selection,
+            normalizedRange,
+            writer,
+            guardEndLen,
+            maxBytes,
+            sizeTracker
+        );
         writer.str(guard.end);
+        sizeTracker.value += guardEndLen;
+
+        if (Number.isFinite(normalizedRange.end) && sizeTracker.value > maxBytes) {
+            const excess = Math.trunc(sizeTracker.value - maxBytes);
+            if (excess > 0) console.warn(`Warning: flat output exceeded max size by ${excess} bytes.`);
+        }
         return summary;
     };
 
     if (target.kind === 'stdout') {
-        return write(new FdWriter(process.stdout.fd));
+        return emitTo(new FdWriter(process.stdout.fd));
     }
 
+    mkdirSync(path.dirname(target.path), { recursive: true });
     const fd = openSync(target.path, 'w');
     try {
-        return write(new FdWriter(fd));
+        return emitTo(new FdWriter(fd));
     } finally {
         closeSync(fd);
     }
 }
 
-function emitSequential(
+function emitSequentialLimited(
     generator: C11CodeGenerator,
     selection: MacroSelectionFlags,
     normalizedRange: range,
-    writer: Writer
+    writer: Writer,
+    guardEndLen: number,
+    maxBytes: number,
+    sizeTracker: SizeTracker
 ): GenerationSummary {
+    if (selection.areuniq && selection.uniqenum) {
+        return emitPairedFamilies(generator, normalizedRange, writer, guardEndLen, maxBytes, sizeTracker);
+    }
+
     const summary: GenerationSummary = {};
 
     if (selection.areuniq) {
-        const range = emitFamily(normalizedRange, 2, n => generator.areuniq(writer, n));
-        if (range) summary.areuniq = range;
+        summary.areuniq = emitSoloFamily(
+            'areuniq',
+            normalizedRange,
+            2,
+            (w, n) => generator.areuniq(w, n),
+            writer,
+            guardEndLen,
+            maxBytes,
+            sizeTracker
+        );
     }
 
     if (selection.uniqenum) {
-        const range = emitFamily(normalizedRange, 1, n => generator.uniqenum(writer, n));
-        if (range) summary.uniqenum = range;
+        summary.uniqenum = emitSoloFamily(
+            'uniqenum',
+            normalizedRange,
+            1,
+            (w, n) => generator.uniqenum(w, n),
+            writer,
+            guardEndLen,
+            maxBytes,
+            sizeTracker
+        );
     }
 
     return summary;
 }
 
-function emitFamily(src: range, minN: number, emit: (n: number) => void): GeneratedRange | undefined {
+function emitSoloFamily(
+    kind: MacroFamily,
+    src: range,
+    minN: number,
+    emitFn: (writer: Writer, n: number) => Writer,
+    writer: Writer,
+    guardEndLen: number,
+    maxBytes: number,
+    sizeTracker: SizeTracker
+): GeneratedRange | undefined {
     const start = Math.max(src.start, minN);
-    if (start > src.end) return undefined;
-    for (let n = start; n <= src.end; ++n) emit(n);
-    return { start, end: src.end };
+    const infinite = !Number.isFinite(src.end);
+    if (!infinite && start > src.end) return undefined;
+
+    let rangeOut: GeneratedRange | undefined;
+    for (let n = start; infinite || n <= src.end; ++n) {
+        const len = LengthWriter.ret(w => emitFn(w, n));
+        const predicted = sizeTracker.value + len + guardEndLen;
+        if (predicted > maxBytes && infinite) break;
+        emitFn(writer, n);
+        sizeTracker.value += len;
+        rangeOut = extendRange(rangeOut, n);
+        if (!infinite && n === src.end) break;
+    }
+    return rangeOut;
+}
+
+function emitPairedFamilies(
+    generator: C11CodeGenerator,
+    src: range,
+    writer: Writer,
+    guardEndLen: number,
+    maxBytes: number,
+    sizeTracker: SizeTracker
+): GenerationSummary {
+    const summary: GenerationSummary = {};
+    const infinite = !Number.isFinite(src.end);
+
+    for (let n = src.start; infinite || n <= src.end; ++n) {
+        const macros: MacroEmission[] = [];
+
+        const emitAreuniq = n >= 2;
+        if (emitAreuniq) {
+            const len = LengthWriter.ret(w => generator.areuniq(w, n));
+            macros.push({
+                kind: 'areuniq',
+                n,
+                len,
+                emit: () => generator.areuniq(writer, n),
+            });
+        }
+
+        const canEmitUniqenum = n >= 1 && (n < 2 || emitAreuniq);
+        if (canEmitUniqenum) {
+            const len = LengthWriter.ret(w => generator.uniqenum(w, n));
+            macros.push({
+                kind: 'uniqenum',
+                n,
+                len,
+                emit: () => generator.uniqenum(writer, n),
+            });
+        }
+
+        if (!macros.length) {
+            if (!infinite && n === src.end) break;
+            continue;
+        }
+
+        const totalLen = macros.reduce((acc, m) => acc + m.len, 0);
+        const predicted = sizeTracker.value + totalLen + guardEndLen;
+        if (predicted > maxBytes && infinite) break;
+
+        for (const macro of macros) {
+            macro.emit();
+            sizeTracker.value += macro.len;
+            if (macro.kind === 'areuniq') summary.areuniq = extendRange(summary.areuniq, macro.n);
+            else summary.uniqenum = extendRange(summary.uniqenum, macro.n);
+        }
+
+        if (!infinite && n === src.end) break;
+    }
+
+    return summary;
+}
+
+function extendRange(range: GeneratedRange | undefined, n: number): GeneratedRange {
+    if (!range) return { start: n, end: n };
+    return { start: range.start, end: n };
 }
 
 function normalizeRange(value: number | range): range {
@@ -236,12 +375,6 @@ function applyDependencyPolicy(selection: MacroSelectionFlags, deps: DependencyS
         return { ...selection, areuniq: true };
     }
     return selection;
-}
-
-function ensureFiniteRange(rng: range, target: 'stdout' | 'file') {
-    if (!Number.isFinite(rng.end)) {
-        throw new Error(`Output target "${target}" requires a finite range end`);
-    }
 }
 
 function isMacroFamily(value: string): value is MacroFamily {
