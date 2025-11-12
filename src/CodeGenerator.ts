@@ -70,7 +70,7 @@ export class C11CodeGenerator extends CodeGenerator {
             return this.areuniqCliques(w, n);
         }
         return this.areuniqExpanded(w, n);
-    }
+    };
 
     private readonly areuniqCliques = (w: Writer, n: number) => {
         const k = 3;
@@ -85,11 +85,11 @@ export class C11CodeGenerator extends CodeGenerator {
                 ),
             ident
         );
-    }
+    };
 
     private readonly areuniqExpanded = (w: Writer, n: number) => {
         return this.genAreuniq(w, n, w => w.join('*', g.combinations(n), (w, [a, b]) => this.pair(w, a, b)));
-    }
+    };
 
     private readonly pair = (w: Writer, i1: number, i2: number) => {
         const enumerator1 = pureIdent(i1);
@@ -106,10 +106,10 @@ export class C11CodeGenerator extends CodeGenerator {
                   .str(fmt.format(fmt.cstring, this.cfg.assert.msg, { enumerator1, enumerator2 }))
                   .str(')')
             : w.str('((').str(enumerator1).str(')!=(').str(enumerator2).str('))');
-    }
+    };
     private readonly genAreuniq = (w: Writer, n: number, body: Teller, ident = pureIdent) => {
         return defineMacro(w, this.nameAreuniq.get(n).ident, g.seq(n, ident), body);
-    }
+    };
 
     readonly uniqenum = (w: Writer, n: number) => {
         if (n < 1) return w;
@@ -141,7 +141,7 @@ export class C11CodeGenerator extends CodeGenerator {
                       )
                       .str(')')
         );
-    }
+    };
 
     private readonly genUniqenum = (w: Writer, name: string, info: UniqenumInfo, rest?: Teller) => {
         return defineMacro(w, name, info.params(), w => {
@@ -153,7 +153,7 @@ export class C11CodeGenerator extends CodeGenerator {
                 .str(info.type);
             rest?.(w);
         });
-    }
+    };
 
     /**
      * split graph in k parts of size (node count) n / K + +(i < n % k), i being the subgraph number (the +() parrt allows to account for when n % k != 0)
@@ -183,7 +183,7 @@ export class C11CodeGenerator extends CodeGenerator {
             ]);
         }
         return cliques;
-    }
+    };
 }
 
 function defineMacro(w: Writer, name: string, params: Iterable<string>, body: Teller) {
@@ -199,6 +199,7 @@ function callMacro(w: Writer, name: string, args: Iterable<string>) {
         .join(',', args, (w, x) => w.str(x))
         .str(')');
 }
+
 
 class UniqenumInfo {
     constructor(

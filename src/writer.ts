@@ -1,25 +1,25 @@
 import { closeSync, openSync } from 'fs';
 import { ensureDirSync } from 'fs-extra';
 import type { CodeGenerator } from './CodeGenerator.js';
-import { LengthWriter, FdWriter, StringWriter, type Writer } from './writing.js';
+import { LengthWriter, FdWriter, StringWriter, type Writer, type Teller } from './writing.js';
 import path from 'path';
 import type { range } from './types.js';
 import { intersectingRanges, R } from './util.js';
+import { toBase63 } from './ident.js';
 
 export interface FileWriterConfig {
     maxFileSize: number;
     outputDir: string;
     includeGuards: IncludeGuardStrategy;
-    // maximum n. if end is not finite, the file writer writes headers until their size cannot accomdate maxFileSize bytes
+    /** maximum n. if end is not finite, the file writer writes headers until their size cannot accomdate maxFileSize bytes */
     N: range;
 }
 
-type UC<S extends string> = Lowercase<S> | Uppercase<S>;
-type Prefix = UC<'areuniq' | 'uniqenum'>;
+type Prefix = 'areuniq' | 'uniqenum';
 type IncludeGuardStrategy = 'omit' | 'pragmaOnce' | 'classic';
 
 interface IncludeGuard {
-    start: (writer: Writer, prefix: Prefix, N: range) => Writer;
+    start: (writer: Writer, fileNo: number) => Writer;
     end: string;
 }
 
@@ -28,6 +28,7 @@ export class FilesWriter {
      * sorted array of N.start values of all aruniq headers written so far
      */
     private readonly areuniqFiles: number[] = [];
+    private fileNo = 0;
     private readonly inclGuard: IncludeGuard;
     constructor(
         private readonly cgen: CodeGenerator,
@@ -37,41 +38,25 @@ export class FilesWriter {
     }
 
     readonly generate = () => {
-        ensureDirSync(this.cfg.outputDir);
+        this.fileNo = 0;
 
-        const nEndAreuniq = writeFiles({
+        const nEndAreuniq = this.writeFiles({
+            prefix: 'areuniq',
             N: this.cfg.N,
-            path: N => path.resolve(this.cfg.outputDir, StringWriter.ret(sourceFilename, 'areuniq', N)),
             endN: this.areuniqNend,
-            body: (w, N) => {
+            includes: N => {
                 this.areuniqFiles.push(N.start);
-                this.inclGuard.start(w, 'AREUNIQ', N);
-                this.includes(w, this.areuniqIncludes(N));
-                let n = N.start;
-                while (n <= N.end) {
-                    this.logProgress('areuniq', this.cfg.N, n);
-                    this.cgen.areuniq(w, n++);
-                }
-                return w.str(this.inclGuard.end);
+                return this.areuniqIncludes(N);
             },
+            macroBody: this.cgen.areuniq,
         });
 
-        // write as many uniqenum as we've got of areuniq
-        const uniqenumN = R(this.cfg.N.start, nEndAreuniq);
-        writeFiles({
-            N: uniqenumN,
-            path: N => path.resolve(this.cfg.outputDir, StringWriter.ret(sourceFilename, 'uniqenum', N)),
+        this.writeFiles({
+            prefix: 'uniqenum',
+            N: R(this.cfg.N.start, nEndAreuniq), // write as many uniqenum as we've got of areuniq
             endN: this.uniqenumNend,
-            body: (w, N) => {
-                this.inclGuard.start(w, 'UNIQENUM', N);
-                this.includes(w, this.uniqenumIncludes(N));
-                let n = N.start;
-                while (n <= N.end) {
-                    this.logProgress('uniqenum', uniqenumN, n);
-                    this.cgen.uniqenum(w, n++);
-                }
-                return w.str(this.inclGuard.end);
-            },
+            includes: this.uniqenumIncludes,
+            macroBody: this.cgen.uniqenum,
         });
     };
 
@@ -87,8 +72,8 @@ export class FilesWriter {
 
             const predicted =
                 this.inclGuard.end.length +
-                LengthWriter.ret(this.inclGuard.start, 'UNIQENUM', N) +
-                LengthWriter.ret(this.includes, this.uniqenumIncludes(N)) +
+                LengthWriter.ret(this.inclGuard.start, this.fileNo) +
+                LengthWriter.ret(this.includes, this.dirof('areuniq', N), this.uniqenumIncludes(N)) +
                 macroSize +
                 nextMacroSize;
 
@@ -124,8 +109,8 @@ export class FilesWriter {
 
             const predicted =
                 this.inclGuard.end.length +
-                LengthWriter.ret(this.inclGuard.start, 'AREUNIQ', N) +
-                LengthWriter.ret(this.includes, this.areuniqIncludes(N)) +
+                LengthWriter.ret(this.inclGuard.start, this.fileNo) +
+                LengthWriter.ret(this.includes, this.dirof('areuniq', N), this.areuniqIncludes(N)) +
                 macroSize +
                 nextMacroSize;
 
@@ -153,16 +138,22 @@ export class FilesWriter {
         return intersectingRanges(this.areuniqFiles, N);
     };
 
-    private readonly includes = (w: Writer, headersIndices: range) => {
+    private readonly includes = (w: Writer, currentDir: string, headersIndices: Readonly<range>) => {
         for (let i = headersIndices.start; i <= headersIndices.end; ++i) {
             w.str('#include "');
-            sourceFilename(w, 'areuniq', R(this.areuniqFiles[i]!, this.areuniqFiles[i + 1]! - 1));
+            let N = R(this.areuniqFiles[i]!, this.areuniqFiles[i + 1]! - 1);
+            w.str(
+                path.join(
+                    path.relative(currentDir, this.dirof('areuniq', N)).replaceAll('\\', '/'), // keep cross platform path separators
+                    StringWriter.ret(sourceFilename, 'areuniq', N)
+                )
+            );
             w.str('"\n');
         }
         return w;
     };
 
-    private readonly logProgress = (name: Prefix, N: range, n: number) => {
+    private readonly logProgress = (name: Prefix, N: Readonly<range>, n: number) => {
         const nEndFinite = isFinite(N.end);
         console.log(
             `Writing ${name}`,
@@ -170,36 +161,70 @@ export class FilesWriter {
             nEndFinite ? ((100 * (n - N.start)) / (N.end - N.start + 1)).toPrecision(3) + '%' : ''
         );
     };
+
+    private readonly dirof = (prefix: Prefix, N: range) => {
+        const sStart = N.start.toString();
+        const sEnd = N.end.toString();
+
+        // find common prefix digits
+        let i = 0;
+        while (i < sStart.length && sStart[i] === sEnd[i]) i++;
+
+        const commonPrefix = sStart.slice(0, i);
+
+        const dirs = [];
+        // split prefix into 2-digit groups
+        for (let j = 1; j < commonPrefix.length; j += 2) {
+            dirs.push(commonPrefix.slice(j - 1, j + 1));
+        }
+
+        return path.resolve(this.cfg.outputDir, prefix, ...dirs);
+    };
+
+    readonly ensuredDirs = new Set<string>();
+    private readonly writeFiles = (cfg: Readonly<WriteFilesSpec>) => {
+        let N: range = { start: cfg.N.start, end: cfg.N.start - 1 };
+        while (N.start <= cfg.N.end) {
+            const nEndOrNull = cfg.endN(N.end);
+            if (nEndOrNull === null) {
+                // if we have a reachable end, just write one macro, even if it overflow the size limit
+                if (isFinite(cfg.N.end)) N.end = N.start;
+                // otherwise, stop now
+                else break;
+            } else {
+                N.end = nEndOrNull;
+            }
+            const currentDir = this.dirof(cfg.prefix, N);
+            if (!this.ensuredDirs.has(currentDir)) {
+                this.ensuredDirs.add(currentDir);
+                ensureDirSync(currentDir);
+            }
+            const fd = openSync(path.resolve(currentDir, StringWriter.ret(sourceFilename, cfg.prefix, N)), 'w');
+            try {
+                const w = new FdWriter(fd);
+                this.inclGuard.start(w, this.fileNo++);
+                this.includes(w, currentDir, cfg.includes(N));
+                let n = N.start;
+                while (n <= N.end) {
+                    this.logProgress(cfg.prefix, cfg.N, n);
+                    cfg.macroBody(w, n++);
+                }
+                w.str(this.inclGuard.end);
+            } finally {
+                closeSync(fd);
+            }
+            N.start = N.end + 1;
+        }
+        return N.end;
+    };
 }
 
 interface WriteFilesSpec {
     N: range;
-    path: (N: Readonly<range>) => string;
     endN: (previousEndN: number) => number | null;
-    body: (w: FdWriter, N: Readonly<range>) => Writer;
-}
-
-function writeFiles(cfg: WriteFilesSpec) {
-    let N: range = { start: cfg.N.start, end: cfg.N.start - 1 };
-    while (N.start <= cfg.N.end) {
-        const nEndOrNull = cfg.endN(N.end);
-        if (nEndOrNull === null) {
-            // if we have a reachable end, just write one macro, even if it overflow the size limit
-            if (isFinite(cfg.N.end)) N.end = N.start;
-            // otherwise, stop now
-            else break;
-        } else {
-            N.end = nEndOrNull;
-        }
-        const fd = openSync(cfg.path(N), 'w');
-        try {
-            cfg.body(new FdWriter(fd), N);
-        } finally {
-            closeSync(fd);
-        }
-        N.start = N.end + 1;
-    }
-    return N.end;
+    prefix: Prefix;
+    macroBody: Teller<[number]>;
+    includes: (N: Readonly<range>) => Readonly<range>;
 }
 
 function includeGuard(strat: IncludeGuardStrategy): IncludeGuard {
@@ -207,9 +232,9 @@ function includeGuard(strat: IncludeGuardStrategy): IncludeGuard {
         case 'classic':
             return {
                 end: '#endif\n',
-                start: (w, prefix, N) => {
-                    const s = w.str('#ifndef ').save(sourceName, prefix, N);
-                    return w.str('\n#define ').use(s).str('\n');
+                start: (w, fileNo) => {
+                    const guardMacro = `UNIQ${toBase63(fileNo)}_H\n`;
+                    return w.str('#ifndef ').str(guardMacro).str('#define ').str(guardMacro);
                 },
             };
         case 'omit':
@@ -227,9 +252,7 @@ function includeGuard(strat: IncludeGuardStrategy): IncludeGuard {
 }
 
 function sourceFilename(w: Writer, prefix: Prefix, N: range) {
-    return sourceName(w, prefix, N).str('.h');
-}
-
-function sourceName(w: Writer, prefix: Prefix, N: range) {
-    return w.str(prefix).int(N.start).str('_').int(N.end);
+    w.str(prefix).int(N.start);
+    if (N.end !== N.start) w.str('-').int(N.end);
+    return w.str('.h');
 }

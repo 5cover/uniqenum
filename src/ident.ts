@@ -1,17 +1,25 @@
 import { StableCache } from './StableCache.js';
-import type { Teller, Writer } from './writing.js';
+import { assert } from './util.js';
 
-const identCache = new StableCache<number, string>(pureIdent); // no cache size limit; theoritical max size is N_max
+// Initialization code
+
+const identCache = new StableCache<number, string>(pureIdent); // no cache size limit; effective max size is N_max
 
 const n2char = new Map<number, string>();
 const char2n = new Map<string, number>();
 const F = 52; // letters
 const B = 63; // letters + _ + digits
-buildCharMap(97, 0, 26); // lower letters
-buildCharMap(39, 26, 52); // upper letters
-buildCharMap('_', 52);
-buildCharMap(-4, 53, 62); // digits 1-9
-buildCharMap('0', 62);
+
+{
+    buildCharMap(97, 0, 26); // lower letters
+    buildCharMap(39, 26, 52); // upper letters
+    buildCharMap('_', 52);
+    buildCharMap(-4, 53, 62); // digits 1-9
+    buildCharMap('0', 62);
+
+    assert(n2char.size === B, 'n2char must be of size B');
+    assert(char2n.size === B, 'char2n must be of size B');
+}
 
 export type IdentFn = typeof ident;
 
@@ -70,7 +78,7 @@ export function identLength(i: number): number {
 
 function pureIdent(i: number): string {
     if (i < 0) {
-        throw Error(`i must be >= 0, got ${i}`);
+        throw RangeError(`i must be >= 0, got ${i}`);
     }
 
     let L = 1;
@@ -111,8 +119,21 @@ function buildCharMap(offsetOrChar: number | string, iStart: number, iEnd: numbe
     }
 }
 
+export function toBase63(n: number): string {
+    if (n < 0) {
+        throw new RangeError('Input must non-negative ');
+    }
+    if (n === 0) return n2char.get(0)!;
+    let s = '';
+    while (n > 0) {
+        s = n2char.get(n % n2char.size) + s;
+        n = Math.floor(n / n2char.size);
+    }
+    return s;
+}
+
 export function identAntecedentAssert(ident: string): number {
     const i = identAntecedent(ident);
-    if (i === null) throw RangeError('enum must be a valid ident');
+    assert(i !== null, 'enum must be a valid ident');
     return i;
 }

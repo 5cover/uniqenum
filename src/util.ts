@@ -1,4 +1,7 @@
+import path from 'path';
 import type { range } from './types.js';
+import { createInterface } from 'readline/promises';
+import { stdin } from 'process';
 
 /**
  * A parseInt variant that never returns NaN and fails with null instead.
@@ -84,3 +87,6 @@ export function R(start: number, end: number): range {
 
 export const EmptyRange = R(1, 0);
 
+export function assert(expr: boolean, msg: string): asserts expr {
+    if (!expr) throw Error('assert failed: ' + msg);
+}
