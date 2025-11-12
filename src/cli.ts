@@ -89,6 +89,7 @@ function resolveOutput(opts: Pick<CliOptions, 'outFile' | 'outDir' | 'guard' | '
         return {
             kind: 'file',
             path: opts.outFile,
+            maxFileSize: opts.maxSize,
             includeGuards: opts.guard,
         };
     }

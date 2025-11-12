@@ -1,5 +1,4 @@
-import { closeSync, openSync } from 'fs';
-import { ensureDirSync } from 'fs-extra';
+import { closeSync, openSync, mkdirSync } from 'fs';
 import type { CodeGenerator } from './CodeGenerator.js';
 import { LengthWriter, FdWriter, StringWriter, type Writer, type Teller } from './writing.js';
 import path from 'path';
@@ -59,7 +58,7 @@ export class FilesWriter {
 
         this.fileNo = 0;
         this.areuniqFiles.length = 0;
-        this.ensuredDirs.clear();
+        this.mkDired.clear();
 
         const result: FilesWriterResult = {};
         let lastAreuniqEnd = this.cfg.N.start - 1;
@@ -231,7 +230,7 @@ export class FilesWriter {
         return path.resolve(this.cfg.outputDir, prefix, ...dirs);
     };
 
-    readonly ensuredDirs = new Set<string>();
+    readonly mkDired = new Set<string>();
     private readonly writeFiles = (cfg: Readonly<WriteFilesSpec>) => {
         let N: range = { start: cfg.N.start, end: cfg.N.start - 1 };
         while (N.start <= cfg.N.end) {
@@ -245,9 +244,9 @@ export class FilesWriter {
                 N.end = nEndOrNull;
             }
             const currentDir = this.dirof(cfg.prefix, N);
-            if (!this.ensuredDirs.has(currentDir)) {
-                this.ensuredDirs.add(currentDir);
-                ensureDirSync(currentDir);
+            if (!this.mkDired.has(currentDir)) {
+                this.mkDired.add(currentDir);
+                mkdirSync(currentDir, { recursive: true });
             }
             const fd = openSync(path.resolve(currentDir, StringWriter.ret(sourceFilename, cfg.prefix, N)), 'w');
             try {

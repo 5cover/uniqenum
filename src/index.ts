@@ -1,5 +1,5 @@
 import path from 'path';
-import { closeSync, mkdirSync, openSync } from 'fs';
+import { closeSync, openSync } from 'fs';
 import { C11CodeGenerator } from './CodeGenerator.js';
 import type { CodeConfig, CodeConfigNames } from './CodeConfig.js';
 import type { range } from './types.js';
@@ -17,21 +17,22 @@ export type { CodeConfigNames, AssertAllRefs, AssertOnceRefs } from './CodeConfi
 export type { IncludeGuardStrategy } from './writer.js';
 export type { Input as FormatInput } from './format.js';
 
-const DEFAULT_NAMES: CodeConfigNames = {
+const DEFAULT_NAMES = {
     areuniq: ['areuniq', { ref: 'n' }],
     uniqenum: ['uniqenum', { ref: 'n' }],
-};
+} as const satisfies CodeConfigNames;
 
-const DEFAULT_ASSERTION: CodeConfig['assert'] = {
+const DEFAULT_ASSERTION = {
     when: 'once',
     msg: ['duplicate enum values: ', { ref: 'name' }, ' ', { ref: 'type' }],
-};
+} as const satisfies CodeConfig['assert'];
 
-const DEFAULT_INCLUDE_GUARD: IncludeGuardStrategy = 'classic';
+const DEFAULT_INCLUDE_GUARD = 'classic' satisfies IncludeGuardStrategy;
 
 export const DEFAULT_MAX_FILE_SIZE = 256 * 1024;
 
-export type MacroFamily = 'areuniq' | 'uniqenum';
+const MacroFamilies = ['areuniq', 'uniqenum'] as const;
+export type MacroFamily = (typeof MacroFamilies)[number];
 
 export type MacroSelectionOption = MacroFamily | MacroFamily[] | Partial<Record<MacroFamily, boolean>>;
 
@@ -66,6 +67,7 @@ export interface StdoutOutput extends BaseOutput {
 export interface FileOutput extends BaseOutput {
     kind: 'file';
     path: string;
+    maxFileSize?: number;
 }
 
 export interface DirectoryOutput extends BaseOutput {
@@ -89,8 +91,6 @@ interface MacroSelectionFlags {
     uniqenum: boolean;
 }
 
-const MacroFamilies: readonly MacroFamily[] = ['areuniq', 'uniqenum'] as const;
-
 export function generate(options: GenerateOptions): GenerationSummary {
     const normalizedRange = normalizeRange(options.range);
     const dependencies = options.dependencies ?? 'include';
@@ -101,8 +101,7 @@ export function generate(options: GenerateOptions): GenerationSummary {
     if (options.output.kind === 'directory') {
         return writeDirectory(generator, selection, normalizedRange, options.output);
     }
-
-    ensureFiniteRange(normalizedRange, options.output.kind);
+    
     return writeFlat(generator, selection, normalizedRange, options.output);
 }
 
@@ -154,7 +153,6 @@ function writeFlat(
         return write(new FdWriter(process.stdout.fd));
     }
 
-    mkdirSync(path.dirname(target.path), { recursive: true });
     const fd = openSync(target.path, 'w');
     try {
         return write(new FdWriter(fd));
