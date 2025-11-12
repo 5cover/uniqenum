@@ -29,6 +29,20 @@
 deps: 'include' | 'exclude';
 ```
 
+## API
+
+What we want to be able to do
+
+- Generate `areuniq` and/or `uniqenum`
+- Generate for a single N or a range
+- Output in stdout or file or directory with trie
+- Generate dependencies or omit
+- Customize `areuniq` macro name
+- Customize `uniqenum` macro name
+- Customize assertion mode and msg
+  - all: assert each pair
+  - once: assert all pairs
+
 ## Paper
 
 Rewrite scraps into an actual engineering paper covering

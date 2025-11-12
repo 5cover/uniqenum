@@ -328,44 +328,6 @@ Then `areuniq6` recurses the same way until base `areuniq_B` are expanded into e
 
 Note: pairs like (a1,a4) appear in `areuniq6` C12 and (a1,a7) in C13 etc. Some pairs can appear multiple times; that is acceptable.
 
-### Implementation plan (practical)
-
-1. **Generator script** (Python recommended)
-   - Inputs: `max_N`, `base_B`, `k` (default 3), `ident_charset` rules, output header path.
-   - Produces a single header `areuniq_generated.h` with:
-     - `ident(n)` function used to name macro parameters inside emitted macros.
-     - Base-case macros `AREUNIQ_B` for `B <= base_B`. (Base_B chosen to keep direct expansion manageable and under compiler macro-param limits.)
-     - Recursive macros `AREUNIQ_m` for each m that is produced by recursion up to `max_N`.
-
-   - The script slices parameter lists deterministically so helper macros are reusable.
-   - Option: emit `uniqenumN` wrappers that place the enum body then call the `AREUNIQ_N` static assert.
-
-2. **Macro naming conventions**
-   - `AREUNIQ_N(...)` uppercase for generated macros.
-   - `AREUNIQ_B_BASE(...)` for base-case direct expansion.
-   - Keep a small constant prefix to avoid collisions.
-
-3. **Parameter ordering**
-   - Keep parameters in natural order by index. For `Cij = Vi ∪ Vj`, parameters are listed `Vi` then `Vj`. This keeps sharing high across macros and makes emitted calls compact (shared prefixes in a textual minifier).
-
-4. **Base case**
-   - For `M <= base_B` expand directly either
-     - as product of `(a_i - a_j)` for all i<j, or
-     - use your triangular helper macros to compress the row product if you already have those small helpers.
-
-   - Choose base_B so that direct expansion fits within compiler macro-argument and source-file size limits. `base_B = 16` or `32` is a conservative default; you can raise it if CI proves fine.
-
-5. **Minification and token-count**
-   - The generator can produce a compact, token-minified output (no whitespace, short macro names) for production headers used in builds. Development output can be pretty printed.
-
-6. **Integration into uniqenum**
-   - `uniqenumN(...)` expands to `enum ... { ... }` followed immediately by `_Static_assert(AREUNIQ_N(...), "uniqenum: duplicate")`.
-   - Provide both `uniqenumN` and `AREUNIQ_N` exported. This preserves the two-stage API (plain enum + manual assert) and the shorthand `uniqenumN`.
-
-7. **Tests**
-   - Unit tests: small N values compile and fail correctly on intentional duplicates.
-   - Stress tests: generate 10k-100k small headers and test compile-time usage to ensure macro-parameter limits and preprocessor time are acceptable.
-
 ### Complexity and resource expectations
 
 - For k=3 recursion:
@@ -404,23 +366,11 @@ However there is a problem. `areuniq` is not self contained. With the cliques ge
 
 This means these smaller `areuniq` macros (and their own dependencies, recursively), must be in scope at the time we call `areuniq`.
 
-Tested with N=512, generating only `areuniq`
+This means we generate include statements that point to smaller headers. Each header corresponds to a specific range of N values.
 
 We write code in a header until our size would go above 262144 bytes, then we move to a new header.
 
-Creates 4 5 headers:
-
-```text
-$ wc -c out/*
- 260419 out/0.h
- 260350 out/1.h
- 261800 out/2.h
- 258208 out/3.h
-  92757 out/4.h
-1133534 total
-```
-
-Ranges:
+For instance, for max N=512:
 
 | \#  | Min N | Max N (incl) | First macro deps | Last macro deps | Number of macros |
 | --- | ----- | ------------ | ---------------- | --------------- | ---------------- |
@@ -440,6 +390,38 @@ Since the number of macros per header naturally decreases (as bytes per macro in
 
 The exception is H2 here, which is too large to depend only on H0, but it would be much smaller (max N 375, expressing only 25 macros instead of 77) if we didn't allow it to depend on H1 too.
 
-## The static assertion message: knowing which values are duplicates
+## Choosing an assertion pattern
 
-Currently, we only display a generic message: "duplicate enum values: {name} {typedef-name}" 
+We have two approches to express the static assertions in `uniqenum`
+
+### Asserting once
+
+Build the `areuniq` macros as expressions, multiplications of the inequality of each pair.
+
+For `uniqenum` of N, we can `_Static_assert` the result of `areuniq` of N.
+
+- Pro: only one assertion
+- Con: it grows very complex, performing at least $\binom{N}{2}$ checks per evaluation, slowing down compilation
+- Con: a failure just shows the existence of duplicates, not which enumerators have duplicate values
+
+### Asserting all
+
+Build the `areuniq` macros as `_Static_assert` statements.
+
+- Pro: asserts every pair independently, giving accurate diagnostics of which pair was equal
+- Con: the number of static assertions grows with the number of paris, slowing down compilation
+- Con: `areuniq` is no longer an expression and is less reusable as a result
+
+### Choosing between the two
+
+An informed choice would require benchmarking of compilation times and memory usage, but asserting once seems better on the long run: only one assertion, reusable `areuniq`
+
+Though asserting all pairs becomes increasingly useful as N grows as it provides accurate diagnostics of which pair was duplicated.
+
+This information is sometimes inferable from context when editing the enum directly, though if editing a macro results in the creation of a duplicated value, without a per-pair diagnostic it'll be unclear which pair was duplicated and the programmer will have to check the value of each enumerator manually.
+
+## Self contained packing headers
+
+For simplified usage, we will provide self-contained `areuniq`/`uniqenum` headers with a bounded size (with a defined increment of say 128kb) for all N in the interval `[2;R]`
+
+Those headers will be provided in the `grab/` directory and downloadable from GitHub.
