@@ -2,11 +2,18 @@
 
 ## Generator
 
-- [x] Reimplement the whole thing in Node TypeScript
-- [x] use modern conventions and a focused CLI and API for generating the code
+- [ ] fix string constant prefixes (L, R, a [gnu extension](https://gcc.gnu.org/onlinedocs/gcc/Raw-String-Literals.html?utm_source=chatgpt.com), u, U, u8): must be followed by a space: `#L"etc"` is an error, must be `#L "etc"`
+- [ ] provide hybrid assertion model
+  - differences between assertion modes: once or all:
+    2. in once, the base case `areuniq2` is a regular expression. in all, it is a static assertion.
+    1. in once, `areuniq` sub-clique macro calls are separated by `*`. in all, they are separated by `;`.
+    3. in once, `uniquenumN` statically asserts that `areuniqN` is non-zero. in all, this call is unnecessary; static assertions are already provided by the `areuniq2` base case
+  - provide a code user config macro: `UNIQENUM_ASSERT_ALL_PAIRS`. when defined:
+    - `_UNIQj` is `;`, otherwise `*`.
+    - `areuniq2` static asserts, otherwise is an expression.
+    - `uniqenumN` does not static assert, otherwise it does.
+    - make vendor prefix `UNIQ` configurable in the apicligui
 - [x] optimize performance (currently v8 crashes for N too big, fearing oom), allow splitting output in files of defined size or inline generation, better
-- [ ] API with more options than the CLI (cli doesn't provide string formatting options, it keeps the defaults). API is inherently more powerful
-- [ ] provide downloadable pre-generated files in the repo. thinking about a way to provide self contained headers
 - [ ] tooling that refactors regular enums in a code base into uniqenums automatically. skips auto initializer only enums, and asks in the console for each enum about the unique patterns (full/partial uniqueness)
 
 ## API
