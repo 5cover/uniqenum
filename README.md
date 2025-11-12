@@ -82,26 +82,25 @@ Output targets:
 
 All options are fully typed (see `src/index.ts`) so you get auto-complete inside TypeScript projects. The Samples generator (`samples/gen-samples.ts`) is a minimal script that exercises the API to produce the pre-generated headers committed in this repo.
 
-## Example: Unique enums
+## Usage & syntax
+
+```text
+uniqenum<N: number of enumerators>(<enum-name>,
+    <key1>,=<value1>,
+    <key2>,=<value2>,
+    <key3>,, // automatic value, 1 greater than the previous value
+    ...
+    <keyN>,=<valueN>,
+<typedef-name>)
+```
+
+`enum-name` and `typedef-name` can be blank.
+
+Usage:
 
 ```c
-#include <stdio.h>
-
-#define uniqenum5(a,b,c,d,e,f,g,h,i,j,k,l)enum k{a=(b),c=(d),e=(f),g=(h),i=(j)}l;_Static_assert(((b)-(d))*((b)-(f))*((b)-(h))*((b)-(j))*((d)-(f))*((d)-(h))*((d)-(j))*((f)-(h))*((f)-(j))*((h)-(j)),"duplicate enum values")
-uniq
-typedef uniqenum5(A1,1,B1,2,C1,3,D1,4,E1,5,E1e,E1t); // typedef enum A{} A  named + typedef
-typedef uniqenum5(A2,1,B2,2,C2,3,D2,4,E2,5,,E2t);    // typedef enum{} A    typedef
-uniqenum5(A3,1,B3,2,C3,3,D3,4,E3,5,E3e,);            // enum A{}            named
-uniqenum5(A4,1,B4,2,C4,3,D4,4,E4,5,,);               // enum{}              anonymous
-
-int main() 
-{
-    enum E1e e1e;
-    E1t e1t;
-    E2t e2t;
-    enum E3e e3e;
-    printf("Hello World: %d %d %d %d %d", A4, B4, C4, D4, E4);
-
-    return 0;
-}
+typedef uniqenum5(E1e,A1,=1,B1,=2,C1,=3,D1,=4,E1,=5,E1t); // typedef enum E1e{} E1t  named + typedef
+typedef uniqenum5(,A2,=1,B2,=2,C2,=3,D2,=4,E2,=5,E2t);    // typedef enum{} E2t    typedef
+uniqenum5(E3e,A3,=1,B3,=2,C3,=3,D3,=4,E3,=5,);            // enum E3e{}            named
+uniqenum5(,A4,=1,B4,=2,C4,=3,D4,=4,E4,=5,);               // enum{}              anonymous
 ```
