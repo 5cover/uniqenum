@@ -143,10 +143,12 @@ export class FilesWriter {
             w.str('#include "');
             let N = R(this.areuniqFiles[i]!, this.areuniqFiles[i + 1]! - 1);
             w.str(
-                path.join(
-                    path.relative(currentDir, this.dirof('areuniq', N)),
-                    StringWriter.ret(sourceFilename, 'areuniq', N)
-                ).replaceAll(/\\/g, '/'), // keep cross platform path separators
+                path
+                    .join(
+                        path.relative(currentDir, this.dirof('areuniq', N)),
+                        StringWriter.ret(sourceFilename, 'areuniq', N)
+                    )
+                    .replaceAll(/\\/g, '/') // keep cross platform path separators
             );
             w.str('"\n');
         }
@@ -163,14 +165,19 @@ export class FilesWriter {
     };
 
     private readonly dirof = (prefix: Prefix, N: range) => {
-        const sStart = N.start.toString();
-        const sEnd = N.end.toString();
+        let commonPrefix: string;
+        if (N.start === N.end) {
+            commonPrefix = N.start.toString();
+        } else {
+            const sStart = N.start.toString();
+            const sEnd = N.end.toString();
 
-        // find common prefix digits
-        let i = 0;
-        while (i < sStart.length && sStart[i] === sEnd[i]) i++;
+            // find common prefix digits
+            let i = 0;
+            while (i < sStart.length && sStart[i] === sEnd[i]) i++;
 
-        const commonPrefix = sStart.slice(0, i);
+            commonPrefix = sStart.slice(0, i);
+        }
 
         const dirs = [];
         // split prefix into 2-digit groups

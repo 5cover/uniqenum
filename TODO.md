@@ -4,7 +4,7 @@
 
 - [x] Reimplement the whole thing in Node TypeScript
 - [x] use modern conventions and a focused CLI and API for generating the code
-- [ ] optimize performance (currently v8 crashes for N too big, fearing oom), allow splitting output in files of defined size or inline generation, better
+- [x] optimize performance (currently v8 crashes for N too big, fearing oom), allow splitting output in files of defined size or inline generation, better
   - [ ] new cli: keep seq-like N, provide options:
   - [ ] `-s,--split <file-size>`: enable generation of split files. specify a max file size. generates split headers by grouping dependencies, only one include per header to form a tree sharing common $\lceil2N/3\rceil$ dependencies, minimizing preprocessor overhead
   - [ ] `-o,--output <path>`: define output dir/file. if absent, outputs to stdout. if splitting, treated as a directory, and files are created inside of it. if not splitting but path already exists as a directory, a single split file is created inside of it (cp-like behavior)
@@ -18,7 +18,7 @@
   - name.areuniq(n) -> ident name for the `areuniq` macro
   - name.uniqenum(n) -> ident name for the `uniqenum` macro
   - uniqAssertionMsg(n) -> code for a C string literal for the static assertion message in `uniqenum`. not a string, because the user may want to concat enum name, type, keys and values. maybe we provide them an object to get access to the underlying ident parameters easily
-- [ ] provide downloadable pre-generated files in the repo.
+- [ ] provide downloadable pre-generated files in the repo. thinking about a way to provide self contained headers
 - [ ] tooling that refactors regular enums in a code base into uniqenums automatically. skips auto initializer only enums, and asks in the console for each enum about the unique patterns (full/partial uniqueness)
 
 ```text
