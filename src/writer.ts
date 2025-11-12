@@ -16,16 +16,32 @@ export interface FileWriterConfig {
 }
 
 type Prefix = 'areuniq' | 'uniqenum';
-type IncludeGuardStrategy = 'omit' | 'pragmaOnce' | 'classic';
+export type IncludeGuardStrategy = 'omit' | 'pragmaOnce' | 'classic';
 
-interface IncludeGuard {
+export interface IncludeGuard {
     start: (writer: Writer, fileNo: number) => Writer;
     end: string;
 }
 
+export interface FilesWriterSelection {
+    areuniq?: boolean;
+    uniqenum?: boolean;
+}
+
+export interface FilesWriterRange {
+    start: number;
+    end: number;
+}
+
+export interface FilesWriterResult {
+    areuniq?: FilesWriterRange;
+    uniqenum?: FilesWriterRange;
+}
+
 export class FilesWriter {
     /**
-     * sorted array of N.start values of all aruniq headers written so far
+     * Sorted array of lower bounds for written areuniq headers.
+     * The last value is a sentinel (end + 1) when at least one header has been written.
      */
     private readonly areuniqFiles: number[] = [];
     private fileNo = 0;
@@ -34,30 +50,57 @@ export class FilesWriter {
         private readonly cgen: CodeGenerator,
         private readonly cfg: Readonly<FileWriterConfig>
     ) {
-        this.inclGuard = includeGuard(cfg.includeGuards);
+        this.inclGuard = createIncludeGuard(cfg.includeGuards);
     }
 
-    readonly generate = () => {
+    readonly generate = (selection: FilesWriterSelection = {}): FilesWriterResult => {
+        const emitAreuniq = selection.areuniq ?? true;
+        const emitUniqenum = selection.uniqenum ?? true;
+
         this.fileNo = 0;
+        this.areuniqFiles.length = 0;
+        this.ensuredDirs.clear();
 
-        const nEndAreuniq = this.writeFiles({
-            prefix: 'areuniq',
-            N: this.cfg.N,
-            endN: this.areuniqNend,
-            includes: N => {
-                this.areuniqFiles.push(N.start);
-                return this.areuniqIncludes(N);
-            },
-            macroBody: this.cgen.areuniq,
-        });
+        const result: FilesWriterResult = {};
+        let lastAreuniqEnd = this.cfg.N.start - 1;
 
-        this.writeFiles({
-            prefix: 'uniqenum',
-            N: R(this.cfg.N.start, nEndAreuniq), // write as many uniqenum as we've got of areuniq
-            endN: this.uniqenumNend,
-            includes: this.uniqenumIncludes,
-            macroBody: this.cgen.uniqenum,
-        });
+        if (emitAreuniq) {
+            lastAreuniqEnd = this.writeFiles({
+                prefix: 'areuniq',
+                N: this.cfg.N,
+                endN: this.areuniqNend,
+                includes: N => {
+                    this.areuniqFiles.push(N.start);
+                    return this.areuniqIncludes(N);
+                },
+                macroBody: this.cgen.areuniq,
+            });
+
+            if (this.areuniqFiles.length > 0) {
+                this.areuniqFiles.push(lastAreuniqEnd + 1);
+                if (lastAreuniqEnd >= this.cfg.N.start) {
+                    result.areuniq = { start: this.cfg.N.start, end: lastAreuniqEnd };
+                }
+            }
+        }
+
+        if (emitUniqenum) {
+            const uniqRange = emitAreuniq ? R(this.cfg.N.start, lastAreuniqEnd) : this.cfg.N;
+            if (uniqRange.start <= uniqRange.end) {
+                const uniqEnd = this.writeFiles({
+                    prefix: 'uniqenum',
+                    N: uniqRange,
+                    endN: this.uniqenumNend,
+                    includes: this.uniqenumIncludes,
+                    macroBody: this.cgen.uniqenum,
+                });
+                if (uniqEnd >= uniqRange.start) {
+                    result.uniqenum = { start: uniqRange.start, end: uniqEnd };
+                }
+            }
+        }
+
+        return result;
     };
 
     private readonly uniqenumNend = (nMaxPrevious: number): number | null => {
@@ -234,7 +277,7 @@ interface WriteFilesSpec {
     includes: (N: Readonly<range>) => Readonly<range>;
 }
 
-function includeGuard(strat: IncludeGuardStrategy): IncludeGuard {
+export function createIncludeGuard(strat: IncludeGuardStrategy): IncludeGuard {
     switch (strat) {
         case 'classic':
             return {

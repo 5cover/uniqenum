@@ -5,29 +5,9 @@
 - [x] Reimplement the whole thing in Node TypeScript
 - [x] use modern conventions and a focused CLI and API for generating the code
 - [x] optimize performance (currently v8 crashes for N too big, fearing oom), allow splitting output in files of defined size or inline generation, better
-  - [ ] new cli: keep seq-like N, provide options:
-  - [ ] `-s,--split <file-size>`: enable generation of split files. specify a max file size. generates split headers by grouping dependencies, only one include per header to form a tree sharing common $\lceil2N/3\rceil$ dependencies, minimizing preprocessor overhead
-  - [ ] `-o,--output <path>`: define output dir/file. if absent, outputs to stdout. if splitting, treated as a directory, and files are created inside of it. if not splitting but path already exists as a directory, a single split file is created inside of it (cp-like behavior)
-  - [ ] `--only`: skips checking for missing dependencies not covered by the requested N range (we'll have to implement that. basically if someone asks for N=100, clique method requires areuniq67 -- should it be implemented?)
-    - without --only: implement all dependencies (recursively) using the most efficient method available, as normal
-    - with --only: do not implement dependencies, but pretend they are here
-- validate idents?
-- [ ] API with more options than the CLI (cli doesn't provide string formatting option, it keeps the defaults)
-  - split
-  - output
-  - name.areuniq(n) -> ident name for the `areuniq` macro
-  - name.uniqenum(n) -> ident name for the `uniqenum` macro
-  - uniqAssertionMsg(n) -> code for a C string literal for the static assertion message in `uniqenum`. not a string, because the user may want to concat enum name, type, keys and values. maybe we provide them an object to get access to the underlying ident parameters easily
+- [ ] API with more options than the CLI (cli doesn't provide string formatting options, it keeps the defaults). API is inherently more powerful
 - [ ] provide downloadable pre-generated files in the repo. thinking about a way to provide self contained headers
 - [ ] tooling that refactors regular enums in a code base into uniqenums automatically. skips auto initializer only enums, and asks in the console for each enum about the unique patterns (full/partial uniqueness)
-
-```text
-/**
-  * include: include dependencies, even if not in original N range
-  * exclude: exclude dependencies
-  */
-deps: 'include' | 'exclude';
-```
 
 ## API
 
@@ -35,13 +15,14 @@ What we want to be able to do
 
 - Generate `areuniq` and/or `uniqenum`
 - Generate for a single N or a range
-- Output in stdout or file or directory with trie
+- Output in stdout or file or directory with trie and capped file size
 - Generate dependencies or omit
 - Customize `areuniq` macro name
 - Customize `uniqenum` macro name
 - Customize assertion mode and msg
   - all: assert each pair
   - once: assert all pairs
+- Customize include guard style (classic, pragmaOnce, omit)
 
 ## Paper
 
