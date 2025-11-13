@@ -2,7 +2,6 @@
 
 ## Generator
 
-- [ ] fix string constant prefixes (L, R, a [gnu extension](https://gcc.gnu.org/onlinedocs/gcc/Raw-String-Literals.html?utm_source=chatgpt.com), u, U, u8): must be followed by a space: `#L"etc"` is an error, must be `#L "etc"`
 - [ ] provide hybrid assertion model
   - differences between assertion modes: once or all:
     2. in once, the base case `areuniq2` is a regular expression. in all, it is a static assertion.
@@ -13,7 +12,8 @@
     - `areuniq2` static asserts, otherwise is an expression.
     - `uniqenumN` does not static assert, otherwise it does.
     - make vendor prefix `UNIQ` configurable in the apicligui
-- [x] optimize performance (currently v8 crashes for N too big, fearing oom), allow splitting output in files of defined size or inline generation, better
+- [ ] test correctness of generation (currently the samples serve as a makeshift test suite to see if regenerating forms git diffs)
+- [ ] optimize performance (currently v8 crashes for N too big, fearing oom), allow splitting output in files of defined size or inline generation, better
 - [ ] tooling that refactors regular enums in a code base into uniqenums automatically. skips auto initializer only enums, and asks in the console for each enum about the unique patterns (full/partial uniqueness)
 
 ## API

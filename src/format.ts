@@ -29,26 +29,31 @@ export const string: Builder<string, string> = {
     end: a => a,
 };
 
-export const cstring: Builder<string, { code: string; instr: boolean }> = {
-    start: () => ({ code: '', instr: false }),
+export const cstring: Builder<string, { code: string; lastref?: string }> = {
+    start: () => ({ code: '' }),
     str: (a, v) => {
-        if (!a.instr) {
+        const al = a.lastref;
+        if (al || !a.code) {
+            // (L, R [which is a gnu extension](https://gcc.gnu.org/onlinedocs/gcc/Raw-String-Literals.html?utm_source=chatgpt.com), u, U, u8): must be followed by a space: `#L"etc"` is an error, must be `#L "etc"`: https://en.cppreference.com/w/c/language/string_literal.html
+            if (al && (al[0] === 'L' || al[0] === 'R' || al[0] === 'U' || al[0] === 'u')) {
+                a.code += ' ';
+            }
             a.code += '"';
-            a.instr = true;
+            a.lastref = undefined;
         }
         a.code += escapeCString.get(v);
         return a;
     },
     ref: (a, v) => {
-        if (a.instr) {
+        if (!v) return a;
+        if (!a.lastref) {
             a.code += '"';
-            a.instr = false;
         }
         a.code += '#';
-        a.code += v;
+        a.code += a.lastref = v;
         return a;
     },
-    end: a => (a.instr ? a.code + '"' : a.code),
+    end: a => (a.lastref ? a.code : a.code + '"'),
 };
 
 /**
