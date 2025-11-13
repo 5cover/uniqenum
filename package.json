@@ -1,25 +1,75 @@
 {
   "name": "uniqenum",
   "version": "1.0.0",
-  "description": "Unique enum C meta-programming macro family.",
+  "description": "Prove uniqueness of C enums at compile-time through generated recursive Vandermonde determinant macros.",
   "license": "MIT",
   "author": "5cover",
   "type": "module",
   "main": "dist/index.js",
+  "homepage": "https://github.com/5cover/uniqenum#readme",
+  "bugs": {
+    "url": "https://github.com/5cover/uniqenum/issues"
+  },
+  "bin": "./dist/cli.js",
+  "keywords": [
+    "math",
+    "generator",
+    "metaproramming"
+  ],
   "scripts": {
     "test": "tsx --test",
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
     "commander": "^14.0.1",
-    "prettier": "^3.6.2",
-    "typescript": "^5.9.3",
-    "undici-types": "^6.21.0"
+    "prettier": "^3.6.2"
   },
   "devDependencies": {
     "@commander-js/extra-typings": "^14.0.0",
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^24.10.0",
-    "tsx": "^4.20.6"
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  },
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist"
+  ],
+  "prettier": {
+    "printWidth": 120,
+    "tabWidth": 2,
+    "singleQuote": true,
+    "arrowParens": "avoid",
+    "bracketSameLine": true,
+    "trailingComma": "es5",
+    "overrides": [
+      {
+        "files": "**/*.ts",
+        "options": {
+          "parser": "typescript"
+        }
+      },
+      {
+        "files": [
+          "**/*.ts",
+          "**/*.js",
+          "**/*.mjs",
+          "**/*.cjs"
+        ],
+        "options": {
+          "tabWidth": 4
+        }
+      }
+    ]
   }
 }

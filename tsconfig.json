@@ -11,6 +11,7 @@
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "module": "NodeNext",
+    "declaration": true
   },
   "include": [
     "**/*.ts",
