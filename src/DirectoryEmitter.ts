@@ -68,7 +68,7 @@ class DirectoryEmitter {
         const N = { start: nMaxPrevious + 1, end: nMaxPrevious + 1 };
 
         let macroSize = 0;
-        const constSize = this.cfg.includeGuard.end.length + baseSize;
+        const constSize = baseSize;
 
         while (N.end <= this.cfg.N.end) {
             // Predict cost if we include nEnd
@@ -104,7 +104,7 @@ class DirectoryEmitter {
         // possible optimization: since size is monotonic, binary search. we know header macro count decreases as macro gets bigger and bigger, therefore the amount of macros in the new header will be smaller than the amount of macros in the previous header.
         const N = { start: nMaxPrevious + 1, end: nMaxPrevious + 1 };
 
-        const constSize = baseSize + this.cfg.includeGuard.end.length;
+        const constSize = baseSize;
         let macroSize = 0;
 
         while (N.end <= this.cfg.N.end) {
@@ -210,9 +210,12 @@ class DirectoryEmitter {
     readonly mkDired = new Set<string>();
     private readonly writeFiles = (cfg: Readonly<WriteFilesSpec>) => {
         let N: range = { start: cfg.N.start, end: cfg.N.start - 1 };
-        const header = this.cgen.headers[cfg.family];
+        const init = this.cgen.inits[cfg.family];
         while (N.start <= cfg.N.end) {
-            const nEndOrNull = cfg.endN(+(N.start === cfg.N.start) * header.length, N.end);
+            const nEndOrNull = cfg.endN(
+                this.cfg.includeGuard.end.length + this.cgen.heading.length + +(N.start === cfg.N.start) * init.length,
+                N.end
+            );
             if (nEndOrNull === null) {
                 // if we have a reachable end, just write one macro, even if it overflows the size limit
                 if (Number.isFinite(cfg.N.end)) N.end = N.start;
@@ -229,8 +232,9 @@ class DirectoryEmitter {
             const fd = openSync(path.resolve(currentDir, StringWriter.ret(sourceFilename, cfg.family, N)), 'w');
             try {
                 const w = new FdWriter(fd);
+                w.str(this.cgen.heading);
                 this.cfg.includeGuard.start(w, toBase63(this.fileNo++));
-                if (N.start === cfg.N.start) w.str(header);
+                if (N.start === cfg.N.start) w.str(init);
                 else this.includes(w, currentDir, cfg.includes(N));
                 let n = N.start;
                 while (n <= N.end) {

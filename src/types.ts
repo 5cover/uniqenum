@@ -64,10 +64,12 @@ export type EmitFn<T> = (cgen: CodeGenerator, cfg: EmitConfig, arg: T) => Genera
  * Invariant: f(n) is pure
  */
 export type CodeGenerator = Readonly<Record<MacroFamily, (w: Writer, n: number) => Writer>> & {
+    /** Heading code that should start all generated translation units. */
+    readonly heading: string;
     /**
      * The header code that must have been included for all macros in each family
      */
-    readonly headers: Readonly<Record<MacroFamily, string>>;
+    readonly inits: Readonly<Record<MacroFamily, string>>;
     /** Base cases for each macro below which no code is generated */
     readonly bases: Readonly<Record<MacroFamily, number>>;
 };

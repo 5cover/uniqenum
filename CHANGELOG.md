@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.1
+
+- Added generated code comments at the start of every generated file
+
 ## 2.0.0
 
 - API/CLI simplification

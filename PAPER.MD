@@ -1,4 +1,4 @@
-# Uniqenum and the Recursive Expression of the Vandermonde Determinant
+# Encoding a recursive expression of the Vandermonde determinant in C preprocessor macros enforcing uniqueness invariants in enumerations
 
 - [1. Abstract](#1-abstract)
 - [2. Introduction](#2-introduction)
