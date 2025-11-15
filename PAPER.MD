@@ -3,7 +3,7 @@
 - [1. Abstract](#1-abstract)
 - [2. Introduction](#2-introduction)
 - [3. Problem Definition](#3-problem-definition)
-  - [Goal](#goal)
+  - [3.1 Goal](#31-goal)
 - [4. Theoretical Foundation](#4-theoretical-foundation)
   - [4.1 Vandermonde determinant](#41-vandermonde-determinant)
   - [4.2 Recursive framing via right triangles](#42-recursive-framing-via-right-triangles)
@@ -18,21 +18,21 @@
   - [5.4 Configuration at generation-time](#54-configuration-at-generation-time)
   - [5.5 Configuration at compile-time](#55-configuration-at-compile-time)
 - [6. Bijective C identifier encoding (`ident(n)`)](#6-bijective-c-identifier-encoding-identn)
-  - [Alphabet and constraints](#alphabet-and-constraints)
-  - [Bijection structure](#bijection-structure)
+  - [6.1 Alphabet and constraints](#61-alphabet-and-constraints)
+  - [6.2 Bijection structure](#62-bijection-structure)
     - [Example](#example)
-  - [Length closed form](#length-closed-form)
-  - [Inverse closed form](#inverse-closed-form)
-  - [Stability and prefix preservation](#stability-and-prefix-preservation)
-  - [Impact on code size](#impact-on-code-size)
+  - [6.3 Length closed form](#63-length-closed-form)
+  - [6.4 Inverse closed form](#64-inverse-closed-form)
+  - [6.5 Stability and prefix preservation](#65-stability-and-prefix-preservation)
+  - [6.6 Impact on code size](#66-impact-on-code-size)
 - [7. Optimization and Trade-offs](#7-optimization-and-trade-offs)
 - [8. Tooling and Usage](#8-tooling-and-usage)
 - [9. Evaluation](#9-evaluation)
 - [10. Standard Compliance](#10-standard-compliance)
-  - [C99](#c99)
-  - [C11 and later](#c11-and-later)
-  - [C89](#c89)
-  - [Preprocessor behavior](#preprocessor-behavior)
+  - [10.1 C99](#101-c99)
+  - [10.2 C11 and later](#102-c11-and-later)
+  - [10.3 C89](#103-c89)
+  - [10.4 Preprocessor behavior](#104-preprocessor-behavior)
 - [11. Discussion / Future Work](#11-discussion--future-work)
 - [12. Conclusion](#12-conclusion)
 - [13. Appendix](#13-appendix)
@@ -85,7 +85,7 @@ The bug may only appear much later, when the system behaves inconsistently, a lo
 
 A larger enumeration amplifies the problem: more values, more computed expressions, more potential collisions, and still no diagnostic.
 
-### Goal
+### 3.1 Goal
 
 We want a compile-time mechanism that:
 
@@ -321,7 +321,7 @@ The user can also define function-like macros `UNIQUENUM_ASSERT_ONCE` and `UNIQE
 
 Large Vandermonde products require macro parameters to be uniquely named, compact, and stable across generations. To avoid quadratic blowup in textual size, `uniqenum` uses an optimally concise bijective identifier encoder. This section describes the construction and shows that it achieves the minimal possible length for C identifiers under standard lexical constraints.
 
-### Alphabet and constraints
+### 6.1 Alphabet and constraints
 
 A C identifier must begin with an ASCII letter or underscore, and subsequent characters may additionally include digits. For portability and readability, `uniqenum` restricts itself to the following **ordered alphabet**:
 
@@ -332,7 +332,7 @@ A C identifier must begin with an ASCII letter or underscore, and subsequent cha
 
 These choices avoid leading underscores and ensure that every identifier is valid across mainstream C toolchains. The first character cannot be numeric, hence the mixed-radix structure.
 
-### Bijection structure
+### 6.2 Bijection structure
 
 The encoding is *bijective*:
 
@@ -397,7 +397,7 @@ Index 57 produces `"a1"`.
 Index 118 produces `"b0"`.
 Everything behaves monotonically.
 
-### Length closed form
+### 6.3 Length closed form
 
 The inverse of the base computation gives the minimal identifier length for index $n$:
 
@@ -416,7 +416,7 @@ $$
 
 Thus `ident(n)` achieves the minimal possible average length over the entire space.
 
-### Inverse closed form
+### 6.4 Inverse closed form
 
 The inverse mapping (`identAntecedent`) reconstructs the integer pre-image:
 
@@ -432,7 +432,7 @@ $$
 
 This guarantees $\mathrm{identAntecedent}(\text{ident}(n)) = n$.
 
-### Stability and prefix preservation
+### 6.5 Stability and prefix preservation
 
 Identifiers increase by modifying the *least significant digit* first. For example:
 
@@ -448,7 +448,7 @@ This produces long stable prefixes:
 
 This non-accidental "spreadsheet monotonicity” also keeps incremental generation cheap and avoids spurious diffs in build artefacts.
 
-### Impact on code size
+### 6.6 Impact on code size
 
 The Vandermonde expansion uses every identifier in the signature of `areuniqN` and `uniqenumN`. Because each identifier appears once or twice per macro, reducing the identifier length by even a constant factor would reduce the total textual size by $\Omega(N)$. Since the current encoding achieves the **shortest possible average length allowed by C**, it contributes directly to the linear-in-N optimality of the generated headers.
 
@@ -522,7 +522,7 @@ uniqenum_108.h:4:22: error: static assertion failed: "duplicate enum values: BLA
 
 `uniqenum` is intentionally written to remain within the portable core of ISO C. It does not rely on GCC extensions, compiler builtins, variadic macros, or any syntax beyond what the standard guarantees.
 
-### C99
+### 10.1 C99
 
 Fully supported when the user supplies a custom static-assert macro.
 All Vandermonde products expand to constant expressions built only from:
@@ -539,15 +539,15 @@ These are valid constant expressions in C99. A simple C89-compatible assertion i
 
 The generator can be configured to emit `uniqassert(...)` instead of `_Static_assert`.
 
-### C11 and later
+### 10.2 C11 and later
 
 Direct support via `_Static_assert`. No additional extensions or attributes are required.
 
-### C89
+### 10.3 C89
 
 The canonical implementation of `uniqenum` uses variadic macros for compile-time configuration of assertions. However, these macros are only used as a convenience and are not necessary for the uniqueness verification. Thus, C89 support is conceptually possible.
 
-### Preprocessor behavior
+### 10.4 Preprocessor behavior
 
 Macro recursion depth is implementation-defined, but the clique recursion ensures logarithmic depth in $\log_{3/2}N$, well below typical limits.
 
