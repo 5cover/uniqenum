@@ -1,6 +1,6 @@
 {
   "name": "uniqenum",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Prove uniqueness of C enums at compile-time through generated recursive Vandermonde determinant macros.",
   "license": "MIT",
   "author": "5cover",
