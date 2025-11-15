@@ -1,126 +1,82 @@
 import { closeSync, openSync, mkdirSync } from 'fs';
-import type { CodeGenerator } from './CodeGenerator.js';
 import { LengthWriter, FdWriter, StringWriter, type Writer, type Teller } from './writing.js';
 import path from 'path';
-import type { range } from './types.js';
+import type { CodeGenerator, EmitConfig, EmitFn, GenerationSummary, MacroFamily, range } from './types.js';
 import { intersectingRanges, R } from './util.js';
 import { toBase63 } from './ident.js';
 
-export interface FileWriterConfig {
-    maxFileSize: number;
-    outputDir: string;
-    includeGuards: IncludeGuardStrategy;
-    /** maximum n. if end is not finite, the file writer writes headers until their size cannot accomdate maxFileSize bytes */
-    N: range;
-}
-
-type Prefix = 'areuniq' | 'uniqenum';
-export type IncludeGuardStrategy = 'omit' | 'pragmaOnce' | 'classic';
-
-export interface IncludeGuard {
-    start: (writer: Writer, fileNo: number) => Writer;
-    end: string;
-}
-
-export interface FilesWriterSelection {
-    areuniq?: boolean;
-    uniqenum?: boolean;
-}
-
-export interface FilesWriterRange {
-    start: number;
-    end: number;
-}
-
-export interface FilesWriterResult {
-    areuniq?: FilesWriterRange;
-    uniqenum?: FilesWriterRange;
-}
-
-export class FilesWriter {
+export const emitDirectory: EmitFn<string> = (cgen, cfg, outputDir) =>
+    new DirectoryEmitter(cgen, cfg).generate(outputDir);
+class DirectoryEmitter {
     /**
      * Sorted array of lower bounds for written areuniq headers.
-     * The last value is a sentinel (end + 1) when at least one header has been written.
+     * The last value is a singleton range
      */
     private readonly areuniqFiles: number[] = [];
     private fileNo = 0;
-    private readonly inclGuard: IncludeGuard;
+    private outputDir: string = '';
     constructor(
         private readonly cgen: CodeGenerator,
-        private readonly cfg: Readonly<FileWriterConfig>
-    ) {
-        this.inclGuard = createIncludeGuard(cfg.includeGuards);
-    }
+        private readonly cfg: EmitConfig
+    ) {}
 
-    readonly generate = (selection: FilesWriterSelection = {}): FilesWriterResult => {
-        const emitAreuniq = selection.areuniq ?? true;
-        const emitUniqenum = selection.uniqenum ?? true;
-
+    readonly generate = (outputDir: string): GenerationSummary => {
         this.fileNo = 0;
         this.areuniqFiles.length = 0;
         this.mkDired.clear();
+        this.outputDir = outputDir;
 
-        const result: FilesWriterResult = {};
-        let lastAreuniqEnd = this.cfg.N.start - 1;
+        const areuniq: range = R(
+            this.cfg.N.start,
+            this.cfg.macros.areuniq
+                ? this.writeFiles({
+                      family: 'areuniq',
+                      N: this.cfg.N,
+                      endN: this.areuniqNend,
+                      includes: N => {
+                          this.areuniqFiles.push(N.start);
+                          return this.areuniqIncludes(N);
+                      },
+                      macroBody: this.cgen.areuniq,
+                  })
+                : this.cfg.N.start - 1
+        );
+        this.areuniqFiles.push(areuniq.end + 1); // last exclusive bound (areuniqFile's last element represents a singleton range)
 
-        if (emitAreuniq) {
-            lastAreuniqEnd = this.writeFiles({
-                prefix: 'areuniq',
-                N: this.cfg.N,
-                endN: this.areuniqNend,
-                includes: N => {
-                    this.areuniqFiles.push(N.start);
-                    return this.areuniqIncludes(N);
-                },
-                macroBody: this.cgen.areuniq,
-            });
+        const uniqenum = R(
+            this.cfg.N.start,
+            this.cfg.macros.uniqenum
+                ? this.writeFiles({
+                      family: 'uniqenum',
+                      N: areuniq,
+                      endN: this.uniqenumNend,
+                      includes: this.uniqenumIncludes,
+                      macroBody: this.cgen.uniqenum,
+                  })
+                : this.cfg.N.start - 1
+        );
 
-            if (this.areuniqFiles.length > 0) {
-                this.areuniqFiles.push(lastAreuniqEnd + 1);
-                if (lastAreuniqEnd >= this.cfg.N.start) {
-                    result.areuniq = { start: this.cfg.N.start, end: lastAreuniqEnd };
-                }
-            }
-        }
-
-        if (emitUniqenum) {
-            const uniqRange = emitAreuniq ? R(this.cfg.N.start, lastAreuniqEnd) : this.cfg.N;
-            if (uniqRange.start <= uniqRange.end) {
-                const uniqEnd = this.writeFiles({
-                    prefix: 'uniqenum',
-                    N: uniqRange,
-                    endN: this.uniqenumNend,
-                    includes: this.uniqenumIncludes,
-                    macroBody: this.cgen.uniqenum,
-                });
-                if (uniqEnd >= uniqRange.start) {
-                    result.uniqenum = { start: uniqRange.start, end: uniqEnd };
-                }
-            }
-        }
-
-        return result;
+        return { areuniq, uniqenum };
     };
 
     private readonly uniqenumNend = (nMaxPrevious: number): number | null => {
         const N = { start: nMaxPrevious + 1, end: nMaxPrevious + 1 };
 
         let macroSize = 0;
-        const maxSize = this.cfg.maxFileSize;
 
         while (N.end <= this.cfg.N.end) {
             // Predict cost if we include nEnd
             const nextMacroSize = LengthWriter.ret(this.cgen.uniqenum, N.end);
 
             const predicted =
-                this.inclGuard.end.length +
-                LengthWriter.ret(this.inclGuard.start, this.fileNo) +
+                this.cfg.includeGuard.end.length +
+                LengthWriter.ret(this.cfg.includeGuard.start, toBase63(this.fileNo)) +
                 LengthWriter.ret(this.includes, this.dirof('areuniq', N), this.uniqenumIncludes(N)) +
                 macroSize +
                 nextMacroSize;
 
             // If adding this macro would exceed limit
-            if (predicted > maxSize) {
+            if (predicted > this.cfg.maxSize) {
                 // but we haven't added anything yet, so we grew out of our limit
                 if (N.end === N.start) return null;
                 break;
@@ -143,21 +99,20 @@ export class FilesWriter {
         const N = { start: nMaxPrevious + 1, end: nMaxPrevious + 1 };
 
         let macroSize = 0;
-        const maxSize = this.cfg.maxFileSize;
 
         while (N.end <= this.cfg.N.end) {
             // Predict cost if we include nEnd
             const nextMacroSize = LengthWriter.ret(this.cgen.areuniq, N.end);
 
             const predicted =
-                this.inclGuard.end.length +
-                LengthWriter.ret(this.inclGuard.start, this.fileNo) +
+                this.cfg.includeGuard.end.length +
+                LengthWriter.ret(this.cfg.includeGuard.start, toBase63(this.fileNo)) +
                 LengthWriter.ret(this.includes, this.dirof('areuniq', N), this.areuniqIncludes(N)) +
                 macroSize +
                 nextMacroSize;
 
             // If adding this macro would exceed limit
-            if (predicted > maxSize) {
+            if (predicted > this.cfg.maxSize) {
                 // but we haven't added anything yet, so we grew out of our limit
                 if (N.end === N.start) return null;
                 break;
@@ -173,7 +128,29 @@ export class FilesWriter {
     };
 
     private readonly areuniqIncludes = (N: range) => {
-        return intersectingRanges(this.areuniqFiles, R(Math.floor((2 * N.start) / 3), Math.ceil((2 * N.end) / 3)));
+        if (N.start === 20 && N.end === 29)
+            console.log(
+                '=====\n',
+                this.areuniqFiles,
+                R(
+                    Math.max(this.cgen.bases.areuniq, Math.floor((2 * N.start) / 3)),
+                    Math.max(this.cgen.bases.areuniq, Math.ceil((2 * N.end) / 3))
+                ),
+                intersectingRanges(
+                    this.areuniqFiles,
+                    R(
+                        Math.max(this.cgen.bases.areuniq, Math.floor((2 * N.start) / 3)),
+                        Math.max(this.cgen.bases.areuniq, Math.ceil((2 * N.end) / 3))
+                    )
+                )
+            );
+        return intersectingRanges(
+            this.areuniqFiles,
+            R(
+                Math.max(this.cgen.bases.areuniq, Math.floor((2 * N.start) / 3)),
+                Math.max(this.cgen.bases.areuniq, Math.ceil((2 * N.end) / 3))
+            )
+        );
     };
 
     private readonly uniqenumIncludes = (N: range) => {
@@ -183,7 +160,10 @@ export class FilesWriter {
     private readonly includes = (w: Writer, currentDir: string, headersIndices: Readonly<range>) => {
         for (let i = headersIndices.start; i <= headersIndices.end; ++i) {
             w.str('#include "');
-            let N = R(this.areuniqFiles[i]!, this.areuniqFiles[i + 1]! - 1);
+            let N = R(
+                this.areuniqFiles[i]!,
+                i + 1 >= this.areuniqFiles.length ? this.areuniqFiles[i]! : this.areuniqFiles[i + 1]! - 1
+            );
             w.str(
                 path
                     .join(
@@ -197,8 +177,8 @@ export class FilesWriter {
         return w;
     };
 
-    private readonly logProgress = (name: Prefix, N: Readonly<range>, n: number) => {
-        const nEndFinite = isFinite(N.end);
+    private readonly logProgress = (name: MacroFamily, N: Readonly<range>, n: number) => {
+        const nEndFinite = Number.isFinite(N.end);
         console.log(
             `Writing ${name}`,
             nEndFinite ? `${n}/${N.end}` : n,
@@ -206,10 +186,12 @@ export class FilesWriter {
         );
     };
 
-    private readonly dirof = (prefix: Prefix, N: range) => {
+    private readonly dirof = (family: MacroFamily, N: range) => {
         let commonPrefix: string;
         if (N.start === N.end) {
-            commonPrefix = N.start.toString();
+            // make sure we cover at most n-1 digits
+            // this avoids producing directories that can only contain a single file
+            commonPrefix = N.start.toString().slice(0, -1);
         } else {
             const sStart = N.start.toString();
             const sEnd = N.end.toString();
@@ -227,7 +209,7 @@ export class FilesWriter {
             dirs.push(commonPrefix.slice(j - 1, j + 1));
         }
 
-        return path.resolve(this.cfg.outputDir, prefix, ...dirs);
+        return path.resolve(this.outputDir, family, ...dirs);
     };
 
     readonly mkDired = new Set<string>();
@@ -237,28 +219,29 @@ export class FilesWriter {
             const nEndOrNull = cfg.endN(N.end);
             if (nEndOrNull === null) {
                 // if we have a reachable end, just write one macro, even if it overflow the size limit
-                if (isFinite(cfg.N.end)) N.end = N.start;
+                if (Number.isFinite(cfg.N.end)) N.end = N.start;
                 // otherwise, stop now
                 else break;
             } else {
                 N.end = nEndOrNull;
             }
-            const currentDir = this.dirof(cfg.prefix, N);
+            const currentDir = this.dirof(cfg.family, N);
             if (!this.mkDired.has(currentDir)) {
                 this.mkDired.add(currentDir);
                 mkdirSync(currentDir, { recursive: true });
             }
-            const fd = openSync(path.resolve(currentDir, StringWriter.ret(sourceFilename, cfg.prefix, N)), 'w');
+            const fd = openSync(path.resolve(currentDir, StringWriter.ret(sourceFilename, cfg.family, N)), 'w');
             try {
                 const w = new FdWriter(fd);
-                this.inclGuard.start(w, this.fileNo++);
+                this.cfg.includeGuard.start(w, toBase63(this.fileNo++));
                 this.includes(w, currentDir, cfg.includes(N));
                 let n = N.start;
                 while (n <= N.end) {
-                    this.logProgress(cfg.prefix, cfg.N, n);
+                    this.logProgress(cfg.family, cfg.N, n);
                     cfg.macroBody(w, n++);
                 }
-                w.str(this.inclGuard.end);
+                w.str(this.cfg.includeGuard.end);
+                w.flush()
             } finally {
                 closeSync(fd);
             }
@@ -271,37 +254,13 @@ export class FilesWriter {
 interface WriteFilesSpec {
     N: range;
     endN: (previousEndN: number) => number | null;
-    prefix: Prefix;
+    family: MacroFamily;
     macroBody: Teller<[number]>;
     includes: (N: Readonly<range>) => Readonly<range>;
 }
 
-export function createIncludeGuard(strat: IncludeGuardStrategy): IncludeGuard {
-    switch (strat) {
-        case 'classic':
-            return {
-                end: '#endif\n',
-                start: (w, fileNo) => {
-                    const guardMacro = `UNIQ${toBase63(fileNo)}_H\n`;
-                    return w.str('#ifndef ').str(guardMacro).str('#define ').str(guardMacro);
-                },
-            };
-        case 'omit':
-            return {
-                start: w => w,
-                end: '',
-            };
-        case 'pragmaOnce': {
-            return {
-                start: w => w.str('#pragma once\n'),
-                end: '',
-            };
-        }
-    }
-}
-
-function sourceFilename(w: Writer, prefix: Prefix, N: range) {
-    w.str(prefix).int(N.start);
+function sourceFilename(w: Writer, family: MacroFamily, N: range) {
+    w.str(family).int(N.start);
     if (N.end !== N.start) w.str('-').int(N.end);
     return w.str('.h');
 }

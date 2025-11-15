@@ -5,19 +5,19 @@ import path from 'path';
 const SIZE_INCREMENT = 128 * 1024; // 128 KB
 const MAX_SIZE = 2 * 1024 * 1024; // 2 MB
 const SCRATCH_PATH = path.join(import.meta.dirname, 'output.h');
-let maxBytes = SIZE_INCREMENT;
+let maxSize = SIZE_INCREMENT;
 
-while (maxBytes <= MAX_SIZE) {
+while (maxSize <= MAX_SIZE) {
     const s = u.generate({
-        range: { start: 1, end: Infinity },
+        N: { start: 1, end: Infinity },
+        maxSize,
         output: {
-            kind: 'file',
+            type: 'file',
             path: SCRATCH_PATH,
-            maxBytes,
         },
     });
-    const filename = path.join(import.meta.dirname, `uniqenum_${s.uniqenum!.end}.h`);
-    console.log(`generated ${filename} (max size: ${maxBytes} bytes)`);
-    maxBytes += SIZE_INCREMENT;
+    const filename = path.join(import.meta.dirname, `uniqenum_${s.uniqenum.end}.h`);
+    console.log(`generated ${filename} (max size: ${maxSize} bytes)`);
+    maxSize += SIZE_INCREMENT;
     fs.renameSync(SCRATCH_PATH, filename);
 }

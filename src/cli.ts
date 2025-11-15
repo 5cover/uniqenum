@@ -1,20 +1,18 @@
 import { program } from '@commander-js/extra-typings';
-import {
-    DEFAULT_MAX_FILE_SIZE,
-    generate,
-    type DependencyStrategy,
-    type IncludeGuardStrategy,
-    type MacroFamily,
-    type OutputTargetOptions,
-} from './index.js';
+import { generate } from './index.js';
 import { safeParseInt, throwf } from './util.js';
+import {
+    IncludeGuardStrategies,
+    isIncludeGuardStrategy,
+    type IncludeGuardStrategy,
+    type OutputConfig,
+} from './types.js';
 
 type CliOptions = {
     areuniq?: boolean;
     uniqenum?: boolean;
-    deps: boolean;
-    outFile?: string;
-    outDir?: string;
+    output?: string;
+    asdir?: boolean;
     guard: IncludeGuardStrategy;
     maxSize?: number;
 };
@@ -26,26 +24,25 @@ program
     .argument('[Nend]', 'End of N range (inclusive)')
     .option('--areuniq', 'Emit only the areuniq macro family')
     .option('--uniqenum', 'Emit only the uniqenum macro family')
-    .option('--no-deps', 'Do not emit areuniq dependencies when uniqenum is selected')
-    .option('-o, --out-file <path>', 'Write to a single header file')
-    .option('-d, --out-dir <path>', 'Write headers into a sharded directory')
-    .option('--max-size <bytes>', 'Maximum bytes per output file (flat or directory)', parsePositiveInt)
-    .option('-g, --guard <style>', 'Include guard style: classic | pragmaOnce | omit', parseGuard, 'classic')
-    .action((startArg, endArg, opts: CliOptions) => {
-        const range = buildRange(startArg, endArg);
-        const macros = resolveMacroSelection(opts);
-        const dependencies: DependencyStrategy = opts.deps ? 'include' : 'omit';
-        const output = resolveOutput(opts);
+    .option('-o, --output <path>', 'Write to a single header file')
+    .option('-d, --asdir', 'Treat output as directory')
+    .option('-l, --max-size <bytes>', 'Maximum bytes per output file (flat or directory)', parsePositiveInt)
+    .option('-g, --guard <style>', `Include guard style: ${IncludeGuardStrategies.join(' | ')}`, parseGuard, 'classic')
+    .action(
+        (startArg, endArg, opts: CliOptions) =>
+            void generate({
+                N: buildRange(startArg, endArg),
+                output: resolveOutput(opts),
+                maxSize: opts.maxSize,
+                includeGuard: opts.guard,
+                macros: {
+                    areuniq: opts.areuniq,
+                    uniqenum: opts.uniqenum,
+                },
+            })
+    );
 
-        generate({
-            range,
-            macros,
-            dependencies,
-            output,
-        });
-    });
-
-program.parse(['--max-size', '1000', '1']);
+program.parse();
 
 function buildRange(startArg: string, endArg?: string) {
     const start = parseFiniteInt(startArg, 'Nstart');
@@ -57,39 +54,22 @@ function buildRange(startArg: string, endArg?: string) {
     return { start, end };
 }
 
-function resolveMacroSelection(opts: Pick<CliOptions, 'areuniq' | 'uniqenum'>): MacroFamily[] | undefined {
-    const requested: MacroFamily[] = [];
-    if (opts.areuniq) requested.push('areuniq');
-    if (opts.uniqenum) requested.push('uniqenum');
-    if (!requested.length) return undefined;
-    return requested;
-}
-
-function resolveOutput(opts: Pick<CliOptions, 'outFile' | 'outDir' | 'guard' | 'maxSize'>): OutputTargetOptions {
-    const targets = [opts.outFile, opts.outDir].filter(Boolean);
-    if (targets.length > 1) {
-        throw new Error('Please specify only one of --out-file or --out-dir');
-    }
-
-    if (opts.outDir) {
+function resolveOutput(opts: CliOptions): OutputConfig {
+    if (opts.asdir) {
         return {
-            kind: 'directory',
-            path: opts.outDir,
-            maxFileSize: opts.maxSize ?? DEFAULT_MAX_FILE_SIZE,
-            includeGuards: opts.guard,
+            type: 'directory',
+            path: opts.output ?? throwf(new Error('Please specify an output directory via the --output option')),
         };
     }
 
-    if (opts.outFile) {
+    if (opts.output !== undefined) {
         return {
-            kind: 'file',
-            path: opts.outFile,
-            includeGuards: opts.guard,
-            maxBytes: opts.maxSize,
+            type: 'file',
+            path: opts.output,
         };
     }
 
-    return { kind: 'stdout', includeGuards: opts.guard, maxBytes: opts.maxSize };
+    return { type: 'stdout' };
 }
 
 function parsePositiveInt(value: string): number {
@@ -101,27 +81,18 @@ function parsePositiveInt(value: string): number {
 }
 
 function parseFiniteInt(value: string, label: string): number {
-    const parsed = safeParseInt(value);
-    if (parsed === null) throwf(new Error(`${label} must be an integer, got: ${value}`));
-    return parsed;
+    return safeParseInt(value) ?? throwf(new Error(`${label} must be an integer, got: ${value}`));
 }
 
 function parseRangeEnd(value: string): number {
     if (isInfinityToken(value)) return Infinity;
     const parsed = safeParseInt(value);
-    if (parsed === null) throwf(new Error(`Nend must be an integer or "inf", got: ${value}`));
-    return parsed;
+    return parsed ?? throwf(new Error(`Nend must be an integer or "inf", got: ${value}`));
 }
 
 function parseGuard(value: string): IncludeGuardStrategy {
-    switch (value) {
-        case 'classic':
-        case 'pragmaOnce':
-        case 'omit':
-            return value;
-        default:
-            throw new Error(`Unknown guard style: ${value}`);
-    }
+    if (isIncludeGuardStrategy(value)) return value;
+    throw new Error(`Unknown guard style: ${value}`);
 }
 
 function isInfinityToken(value: string) {

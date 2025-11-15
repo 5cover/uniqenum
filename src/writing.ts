@@ -114,18 +114,23 @@ export class LengthWriter extends Writer<number> {
         return this;
     }
     override int(n: number) {
-        this.len += isFinite(n) ? +(n < 0) + 1 + Math.floor(Math.log10(Math.abs(n))) : n.toString().length;
+        this.len += Number.isFinite(n) ? +(n < 0) + 1 + Math.floor(Math.log10(Math.abs(n))) : n.toString().length;
         return this;
     }
 }
 
 export class FdWriter extends Writer<string> {
-    constructor(
-        private readonly fd: number,
-    ) {
+    constructor(private readonly fd: number) {
         super();
     }
     private saved?: string[];
+    private bufferSize: number = 0;
+    private buffer: string[] = [];
+    private _emitted = 0;
+    /** Number of bytes emitted so far. */
+    get emitted() {
+        return this._emitted;
+    }
 
     override int(n: number): this {
         return this.write(Math.trunc(n).toString());
@@ -156,10 +161,22 @@ export class FdWriter extends Writer<string> {
         return this.write(saved);
     }
 
+    static c: number = 0;
+
     private write(s: string): this {
         this.saved?.push(s);
-        writeSync(this.fd, s);
+        this._emitted += s.length;
+        this.buffer.push(s);
+        this.bufferSize += s.length;
+        // windows doesn't buffer writeSync, this gets syscall count down from millions to a few thousands
+        if (this.bufferSize > 8192) this.flush();
         return this;
+    }
+
+    flush() {
+        writeSync(this.fd, this.buffer.join(''));
+        this.buffer = [];
+        this.bufferSize = 0;
     }
 }
 

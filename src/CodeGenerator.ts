@@ -1,31 +1,9 @@
 import { scopedIdentFn, ident as pureIdent, type IdentFn, identAntecedent, identAntecedentAssert } from './ident.js';
 import * as g from './g.js';
-import { type CodeConfig } from './CodeConfig.js';
 import * as fmt from './format.js';
 import { LengthWriter, type Writer, type Teller } from './writing.js';
 import { StableCache } from './StableCache.js';
-
-export abstract class CodeGenerator {
-    constructor(protected readonly cfg: CodeConfig) {}
-    /**
-     * Generate the Uniqenum macro.
-     * @abstract
-     * @param {number} n
-     * @returns {string}
-     * Invariant: uniqenum(n + m) >= uniqenum(n)
-     * Invariant: uniqenum(n) is pure
-     */
-    abstract readonly uniqenum: (w: Writer, n: number) => Writer;
-    /**
-     * Generate the Areuniq macro.
-     * @param {number} n
-     * @returns {string}
-     * Invariant: areuniq(n + m) >= areuniq(n)
-     * Invariant: areuniq(n) is pure
-     *
-     */
-    abstract readonly areuniq: (w: Writer, n: number) => Writer;
-}
+import type { CodeGenerator, GenerateConfig, MacroFamily } from './types.js';
 
 const iaEnum = identAntecedentAssert('enum');
 
@@ -34,8 +12,15 @@ interface IdentAntecedentPair {
     i: number | null;
 }
 
-export class C11CodeGenerator extends CodeGenerator {
-    pivotNcliqueSmaller = Infinity;
+export class C11CodeGenerator implements CodeGenerator {
+    constructor(private readonly cfg: GenerateConfig) {}
+    readonly bases = {
+        uniqenum: -Infinity,
+        // largest N for which the expanded generation gives shorted code than the k=3 cliques method. subject to change
+        // areuniq3(a,b,c)areuniq2(a,b)*areuniq2(a,c)*areuniq2(b,c)
+        // areuniq3(a,b,c)((a)!=(b))*((a)!=(c))*((b)!=(c))
+        areuniq: 3,
+    } as const;
 
     private readonly nameAreuniq = new StableCache<number, { ident: string; i: number | null }>(n => {
         const ident = fmt.format(fmt.string, this.cfg.names.areuniq, { n: n.toString() });
@@ -54,22 +39,7 @@ export class C11CodeGenerator extends CodeGenerator {
             return this.genAreuniq(w, n, w => this.pair(w, 0, 1));
         }
 
-        // we should estimate the cost of using cliques before going through with it. example
-        // areuniq3(a,b,c)areuniq2(a,b)*areuniq2(a,c)*areuniq2(b,c)
-        // areuniq3(a,b,c)((a)!=(b))*((a)!=(c))*((b)!=(c))
-        // second version is shorter, the macro call isn't worth it
-        // implementation: don't precompute  the size: generate using both methods and pick shortest, and since size grows monotonically, we can optimize by remembering the smallest n at which expanded > clique
-
-        if (n >= this.pivotNcliqueSmaller) return this.areuniqCliques(w, n);
-
-        // calculate expanded cost, see if smaller, update pivot
-        const cliqueCost = LengthWriter.ret(this.areuniqCliques, n);
-        const expandedCost = LengthWriter.ret(this.areuniqExpanded, n);
-        if (expandedCost < cliqueCost) {
-            this.pivotNcliqueSmaller = n;
-            return this.areuniqCliques(w, n);
-        }
-        return this.areuniqExpanded(w, n);
+        return (n > this.bases.areuniq ? this.areuniqCliques : this.areuniqExpanded)(w, n);
     };
 
     private readonly areuniqCliques = (w: Writer, n: number) => {
@@ -199,7 +169,6 @@ function callMacro(w: Writer, name: string, args: Iterable<string>) {
         .join(',', args, (w, x) => w.str(x))
         .str(')');
 }
-
 
 class UniqenumInfo {
     constructor(

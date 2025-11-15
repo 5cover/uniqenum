@@ -1,5 +1,5 @@
 import { StableCache } from './StableCache.js';
-import type { Teller, Writer } from './writing.js';
+import type { Writer } from './writing.js';
 
 export type Input<Ref> = (string | { ref: Ref })[];
 

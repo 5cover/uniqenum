@@ -1,7 +1,4 @@
-import path from 'path';
 import type { range } from './types.js';
-import { createInterface } from 'readline/promises';
-import { stdin } from 'process';
 
 /**
  * A parseInt variant that never returns NaN and fails with null instead.
