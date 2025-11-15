@@ -28,20 +28,13 @@ type FormatMacroName = fmt.Input<'n'>;
  * Configuration names. It's up to you to provide unique names.
  */
 export type GeneratorConfigNames = Record<MacroFamily, FormatMacroName>;
-export type GeneratorConfigAssert = AssertionCfg<'all', AssertAllRefs> | AssertionCfg<'once', AssertOnceRefs>;
-
-type AssertionCfg<Key extends string, Refs> = {
-    when: Key;
-    msg: fmt.Input<Refs>;
-};
 
 export type AssertAllRefs = 'enumerator1' | 'enumerator2';
 
 export type AssertOnceRefs = 'n' | 'name' | 'type';
 
-export interface GenerateConfig {
+export interface GeneratorConfig {
     names: GeneratorConfigNames;
-    assert: GeneratorConfigAssert;
 }
 
 export interface EmitConfig {
@@ -54,7 +47,10 @@ export interface EmitConfig {
     N: range;
 }
 
-export type OutputConfig = { type: 'directory' | 'file'; path: string } | { type: 'stdout' };
+export type OutputConfig =
+    | { type: 'directory'; path: string; prefixSubdirectoryLength?: number }
+    | { type: 'file'; path: string }
+    | { type: 'stdout' };
 
 export type GenerationSummary = Record<MacroFamily, range>;
 export type MacroSelectionFlags = Partial<Record<MacroFamily, boolean>>;
@@ -69,7 +65,9 @@ export type EmitFn<T> = (cgen: CodeGenerator, cfg: EmitConfig, arg: T) => Genera
  */
 export type CodeGenerator = Readonly<Record<MacroFamily, (w: Writer, n: number) => Writer>> & {
     /**
-     * For each macro family, this number represent the largest N that generates a self contained macro, without dependencies.
+     * The header code that must have been included for all macros in each family
      */
+    readonly headers: Readonly<Record<MacroFamily, string>>;
+    /** Base cases for each macro below which no code is generated */
     readonly bases: Readonly<Record<MacroFamily, number>>;
 };

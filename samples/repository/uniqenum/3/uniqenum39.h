@@ -1,0 +1,5 @@
+#ifndef UNIQ_bt_H
+#define UNIQ_bt_H
+#include "../../areuniq/areuniq39-41.h"
+#define uniqenum39(N,a,P,b,Q,c,R,d,S,e,T,f,U,g,V,h,W,i,X,j,Y,k,Z,l,aa,m,ab,n,ac,o,ad,p,ae,q,af,r,ag,s,ah,t,ai,u,aj,v,ak,w,al,x,am,y,an,z,ao,A,ap,B,aq,C,ar,D,as,E,at,F,au,G,av,H,aw,I,ax,J,ay,K,az,L,aA,M,aB,O)enum N{a P,b Q,c R,d S,e T,f U,g V,h W,i X,j Y,k Z,l aa,m ab,n ac,o ad,p ae,q af,r ag,s ah,t ai,u aj,v ak,w al,x am,y an,z ao,A ap,B aq,C ar,D as,E at,F au,G av,H aw,I ax,J ay,K az,L aA,M aB}O _UNIQA(39,N,O,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z,A,B,C,D,E,F,G,H,I,J,K,L,M)
+#endif

@@ -5,8 +5,13 @@ import type { CodeGenerator, EmitConfig, EmitFn, GenerationSummary, MacroFamily,
 import { intersectingRanges, R } from './util.js';
 import { toBase63 } from './ident.js';
 
-export const emitDirectory: EmitFn<string> = (cgen, cfg, outputDir) =>
-    new DirectoryEmitter(cgen, cfg).generate(outputDir);
+export interface DirectoryEmitterConfig {
+    path: string;
+    prefixSubdirectoryLength: number;
+}
+
+export const emitDirectory: EmitFn<DirectoryEmitterConfig> = (cgen, cfg, dir) =>
+    new DirectoryEmitter(cgen, cfg).generate(dir);
 class DirectoryEmitter {
     /**
      * Sorted array of lower bounds for written areuniq headers.
@@ -14,17 +19,17 @@ class DirectoryEmitter {
      */
     private readonly areuniqFiles: number[] = [];
     private fileNo = 0;
-    private outputDir: string = '';
+    private dir!: DirectoryEmitterConfig;
     constructor(
         private readonly cgen: CodeGenerator,
         private readonly cfg: EmitConfig
     ) {}
 
-    readonly generate = (outputDir: string): GenerationSummary => {
+    readonly generate = (dir: DirectoryEmitterConfig): GenerationSummary => {
         this.fileNo = 0;
         this.areuniqFiles.length = 0;
         this.mkDired.clear();
-        this.outputDir = outputDir;
+        this.dir = dir;
 
         const areuniq: range = R(
             this.cfg.N.start,
@@ -59,17 +64,18 @@ class DirectoryEmitter {
         return { areuniq, uniqenum };
     };
 
-    private readonly uniqenumNend = (nMaxPrevious: number): number | null => {
+    private readonly uniqenumNend = (baseSize: number, nMaxPrevious: number): number | null => {
         const N = { start: nMaxPrevious + 1, end: nMaxPrevious + 1 };
 
         let macroSize = 0;
+        const constSize = this.cfg.includeGuard.end.length + baseSize;
 
         while (N.end <= this.cfg.N.end) {
             // Predict cost if we include nEnd
             const nextMacroSize = LengthWriter.ret(this.cgen.uniqenum, N.end);
 
             const predicted =
-                this.cfg.includeGuard.end.length +
+                constSize +
                 LengthWriter.ret(this.cfg.includeGuard.start, toBase63(this.fileNo)) +
                 LengthWriter.ret(this.includes, this.dirof('areuniq', N), this.uniqenumIncludes(N)) +
                 macroSize +
@@ -94,10 +100,11 @@ class DirectoryEmitter {
     /**
      * Returns the nEnd, largest upper N bound of the next header while keeping header size under or equal to the limit. Returns null if writing 1 macro would already blow past the size limit.
      */
-    private readonly areuniqNend = (nMaxPrevious: number): number | null => {
+    private readonly areuniqNend = (baseSize: number, nMaxPrevious: number): number | null => {
         // possible optimization: since size is monotonic, binary search. we know header macro count decreases as macro gets bigger and bigger, therefore the amount of macros in the new header will be smaller than the amount of macros in the previous header.
         const N = { start: nMaxPrevious + 1, end: nMaxPrevious + 1 };
 
+        const constSize = baseSize + this.cfg.includeGuard.end.length;
         let macroSize = 0;
 
         while (N.end <= this.cfg.N.end) {
@@ -105,7 +112,7 @@ class DirectoryEmitter {
             const nextMacroSize = LengthWriter.ret(this.cgen.areuniq, N.end);
 
             const predicted =
-                this.cfg.includeGuard.end.length +
+                constSize +
                 LengthWriter.ret(this.cfg.includeGuard.start, toBase63(this.fileNo)) +
                 LengthWriter.ret(this.includes, this.dirof('areuniq', N), this.areuniqIncludes(N)) +
                 macroSize +
@@ -128,22 +135,6 @@ class DirectoryEmitter {
     };
 
     private readonly areuniqIncludes = (N: range) => {
-        if (N.start === 20 && N.end === 29)
-            console.log(
-                '=====\n',
-                this.areuniqFiles,
-                R(
-                    Math.max(this.cgen.bases.areuniq, Math.floor((2 * N.start) / 3)),
-                    Math.max(this.cgen.bases.areuniq, Math.ceil((2 * N.end) / 3))
-                ),
-                intersectingRanges(
-                    this.areuniqFiles,
-                    R(
-                        Math.max(this.cgen.bases.areuniq, Math.floor((2 * N.start) / 3)),
-                        Math.max(this.cgen.bases.areuniq, Math.ceil((2 * N.end) / 3))
-                    )
-                )
-            );
         return intersectingRanges(
             this.areuniqFiles,
             R(
@@ -205,20 +196,25 @@ class DirectoryEmitter {
 
         const dirs = [];
         // split prefix into 2-digit groups
-        for (let j = 1; j < commonPrefix.length; j += 2) {
-            dirs.push(commonPrefix.slice(j - 1, j + 1));
+        for (
+            let j = 0;
+            j < commonPrefix.length - (commonPrefix.length % this.dir.prefixSubdirectoryLength);
+            j += this.dir.prefixSubdirectoryLength
+        ) {
+            dirs.push(commonPrefix.slice(j, j + this.dir.prefixSubdirectoryLength));
         }
 
-        return path.resolve(this.outputDir, family, ...dirs);
+        return path.resolve(this.dir.path, family, ...dirs);
     };
 
     readonly mkDired = new Set<string>();
     private readonly writeFiles = (cfg: Readonly<WriteFilesSpec>) => {
         let N: range = { start: cfg.N.start, end: cfg.N.start - 1 };
+        const header = this.cgen.headers[cfg.family];
         while (N.start <= cfg.N.end) {
-            const nEndOrNull = cfg.endN(N.end);
+            const nEndOrNull = cfg.endN(+(N.start === cfg.N.start) * header.length, N.end);
             if (nEndOrNull === null) {
-                // if we have a reachable end, just write one macro, even if it overflow the size limit
+                // if we have a reachable end, just write one macro, even if it overflows the size limit
                 if (Number.isFinite(cfg.N.end)) N.end = N.start;
                 // otherwise, stop now
                 else break;
@@ -234,14 +230,15 @@ class DirectoryEmitter {
             try {
                 const w = new FdWriter(fd);
                 this.cfg.includeGuard.start(w, toBase63(this.fileNo++));
-                this.includes(w, currentDir, cfg.includes(N));
+                if (N.start === cfg.N.start) w.str(header);
+                else this.includes(w, currentDir, cfg.includes(N));
                 let n = N.start;
                 while (n <= N.end) {
                     this.logProgress(cfg.family, cfg.N, n);
                     cfg.macroBody(w, n++);
                 }
                 w.str(this.cfg.includeGuard.end);
-                w.flush()
+                w.flush();
             } finally {
                 closeSync(fd);
             }
@@ -253,7 +250,7 @@ class DirectoryEmitter {
 
 interface WriteFilesSpec {
     N: range;
-    endN: (previousEndN: number) => number | null;
+    endN: (baseSize: number, previousEndN: number) => number | null;
     family: MacroFamily;
     macroBody: Teller<[number]>;
     includes: (N: Readonly<range>) => Readonly<range>;

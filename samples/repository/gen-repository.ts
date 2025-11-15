@@ -1,6 +1,6 @@
 import * as u from '../../src/index.js';
 
-const maxSize = 1024; // 1kB
+const maxSize = 1024;
 
 const s = u.generate({
     N: { start: 1, end: Infinity },
@@ -8,6 +8,7 @@ const s = u.generate({
     output: {
         type: 'directory',
         path: import.meta.dirname,
+        prefixSubdirectoryLength: 1,
     },
 });
 console.log(s);

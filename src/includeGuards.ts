@@ -12,7 +12,7 @@ export function createIncludeGuard(strat: IncludeGuardStrategy): IncludeGuard {
             return {
                 end: '#endif\n',
                 start: (w, fileSlug) => {
-                    const guardMacro = `UNIQ${fileSlug}_H\n`;
+                    const guardMacro = `UNIQ_${fileSlug}_H\n`;
                     return w.str('#ifndef ').str(guardMacro).str('#define ').str(guardMacro);
                 },
             };

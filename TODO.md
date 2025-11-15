@@ -2,15 +2,13 @@
 
 ## Generator
 
-- [ ] configure dirtree output shared prefix digits group size (default 2)
-- [ ] configure assertion macro name
-- [ ] provide hybrid assertion model
+- [x] provide hybrid assertion model
   - differences between assertion modes: once or all:
-    1. in once, the base case `areuniq2` is a regular expression. in all, it is a static assertion.
+    1. in once, the base case `areuniq2` is a regular constant expression. in all, it is a static assertion.
     2. in once, `areuniq` sub-clique macro calls are separated by `*`. in all, they are separated by `;`.
     3. in once, `uniquenumN` statically asserts that `areuniqN` is non-zero. in all, this call is unnecessary; static assertions are already provided by the `areuniq2` base case
   - provide a code user config macro: `UNIQENUM_ASSERT_ALL_PAIRS`. when defined:
-    - `_UNIQj` is `;`, otherwise `*`.
+    - `_UNIQJ` is `;`, otherwise `*`.
     - `areuniq2` static asserts, otherwise is an expression.
     - `uniqenumN` does not static assert, otherwise it does.
     - make vendor prefix `UNIQ` configurable in the apicligui

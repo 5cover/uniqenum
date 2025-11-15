@@ -1,0 +1,7 @@
+#ifndef UNIQ_bk_H
+#define UNIQ_bk_H
+#include "../areuniq/areuniq17-21.h"
+#define uniqenum18(s,a,u,b,v,c,w,d,x,e,y,f,z,g,A,h,B,i,C,j,D,k,E,l,F,m,G,n,H,o,I,p,J,q,K,r,L,t)enum s{a u,b v,c w,d x,e y,f z,g A,h B,i C,j D,k E,l F,m G,n H,o I,p J,q K,r L}t _UNIQA(18,s,t,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r)
+#define uniqenum19(t,a,v,b,w,c,x,d,y,e,z,f,A,g,B,h,C,i,D,j,E,k,F,l,G,m,H,n,I,o,J,p,K,q,L,r,M,s,N,u)enum t{a v,b w,c x,d y,e z,f A,g B,h C,i D,j E,k F,l G,m H,n I,o J,p K,q L,r M,s N}u _UNIQA(19,t,u,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s)
+#define uniqenum20(u,a,w,b,x,c,y,d,z,e,A,f,B,g,C,h,D,i,E,j,F,k,G,l,H,m,I,n,J,o,K,p,L,q,M,r,N,s,O,t,P,v)enum u{a w,b x,c y,d z,e A,f B,g C,h D,i E,j F,k G,l H,m I,n J,o K,p L,q M,r N,s O,t P}v _UNIQA(20,u,v,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t)
+#endif

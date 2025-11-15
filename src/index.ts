@@ -3,7 +3,6 @@ import { C11CodeGenerator } from './CodeGenerator.js';
 import {
     type GeneratorConfigNames,
     type EmitConfig,
-    type GenerateConfig,
     type GenerationSummary,
     type IncludeGuardStrategy,
     type MacroSelectionFlags,
@@ -13,9 +12,12 @@ import {
 import { emitFile } from './FileEmitter.js';
 import { emitDirectory } from './DirectoryEmitter.js';
 import { createIncludeGuard, type IncludeGuard } from './includeGuards.js';
-import { DEFAULT_ASSERTION, DEFAULT_INCLUDE_GUARD, DEFAULT_NAMES } from './const.js';
+import {
+    DEFAULT_INCLUDE_GUARD,
+    DEFAULT_NAMES,
+    DEFAULT_PREFIX_SUBDIRECTORY_LENGTH,
+} from './const.js';
 import { R } from './util.js';
-import { FdWriter } from './writing.js';
 
 export type { range } from './types.js';
 export type { Input as FormatInput } from './format.js';
@@ -23,7 +25,6 @@ export type { Input as FormatInput } from './format.js';
 export type ApiOptions = {
     names?: Partial<GeneratorConfigNames>;
     macros?: Partial<MacroSelectionFlags>;
-    assert?: GenerateConfig['assert'];
 
     maxSize?: number;
     includeGuard?: IncludeGuard | IncludeGuardStrategy;
@@ -39,7 +40,6 @@ export type ApiOptions = {
  */
 export function generate(o: ApiOptions): GenerationSummary {
     const cgen = new C11CodeGenerator({
-        assert: o.assert ?? DEFAULT_ASSERTION,
         names: {
             areuniq: o.names?.areuniq ?? DEFAULT_NAMES.areuniq,
             uniqenum: o.names?.uniqenum ?? DEFAULT_NAMES.uniqenum,
@@ -70,7 +70,10 @@ export function generate(o: ApiOptions): GenerationSummary {
     };
     switch (o.output.type) {
         case 'directory':
-            return emitDirectory(cgen, emitCfg, o.output.path);
+            return emitDirectory(cgen, emitCfg, {
+                path: o.output.path,
+                prefixSubdirectoryLength: o.output.prefixSubdirectoryLength ?? DEFAULT_PREFIX_SUBDIRECTORY_LENGTH,
+            });
         case 'file': {
             const fd = openSync(o.output.path, 'w');
             try {
@@ -82,7 +85,6 @@ export function generate(o: ApiOptions): GenerationSummary {
         case 'stdout':
             return emitFile(cgen, emitCfg, process.stdout.fd);
     }
-
 }
 
 function validateRange(value: range | number): range {

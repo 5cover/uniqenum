@@ -12,10 +12,11 @@
   - [4.5 Clique method explanation](#45-clique-method-explanation)
   - [4.6 Edge multiplicities in clique-based recursion](#46-edge-multiplicities-in-clique-based-recursion)
 - [5. Design and Implementation](#5-design-and-implementation)
-  - [`uniqenumN`](#uniqenumn)
-  - [`areuniqN`](#areuniqn)
-  - [Files and generation](#files-and-generation)
-  - [Configuration](#configuration)
+  - [5.1 `uniqenumN`](#51-uniqenumn)
+  - [5.2 `areuniqN`](#52-areuniqn)
+  - [5.3 Files and generation](#53-files-and-generation)
+  - [5.4 Configuration at generation-time](#54-configuration-at-generation-time)
+  - [5.5 Configuration at compile-time](#55-configuration-at-compile-time)
 - [6. Bijective C identifier encoding (`ident(n)`)](#6-bijective-c-identifier-encoding-identn)
   - [Alphabet and constraints](#alphabet-and-constraints)
   - [Bijection structure](#bijection-structure)
@@ -28,8 +29,9 @@
 - [8. Tooling and Usage](#8-tooling-and-usage)
 - [9. Evaluation](#9-evaluation)
 - [10. Standard Compliance](#10-standard-compliance)
-  - [C89](#c89)
+  - [C99](#c99)
   - [C11 and later](#c11-and-later)
+  - [C89](#c89)
   - [Preprocessor behavior](#preprocessor-behavior)
 - [11. Discussion / Future Work](#11-discussion--future-work)
 - [12. Conclusion](#12-conclusion)
@@ -228,12 +230,12 @@ The generated C code displays these multiplicities explicitly because macro expa
 
 Two macro families:
 
-- `areuniqN` expands to a pure constant expression, structurally derived from the Vandermonde product, that evaluates to non-zero if and only if all N values are distinct. In "assert once” mode it is multiplied into a single `_Static_assert`.
-- `uniqenumN` wraps a conventional enumeration definition followed by either a single `_Static_assert(areuniqN(...), msg)` or a series of per-pair assertions in "assert all” mode.
+- `areuniqN` expands to a pure constant expression, structurally derived from the Vandermonde product, that evaluates to non-zero if and only if all N values are distinct.
+- `uniqenumN` wraps a conventional enumeration definition followed by a call to `areuniqN` with each enumerator.
 
 Base cases (`N=2` and `N=3`) are emitted explicitly using straight products of differences. For $N \ge 4$, the generator partitions arguments into three nearly equal blocks $(A,B,C)$ and emits:
 
-### `uniqenumN`
+### 5.1 `uniqenumN`
 
 Conceptually, `uniqenumN` accepts $2N+2$ parameters:
 
@@ -259,7 +261,7 @@ Base case on $N=1$: there is only one enumerator, rendering the uniqueness check
 
 Otherwise, `uniqenumN` calls `areuniqN` with each enumeration value, which expands with the cliques method to assert uniqueness of each pair.
 
-### `areuniqN`
+### 5.2 `areuniqN`
 
 Accepts $N$ parameters.
 
@@ -276,7 +278,7 @@ areuniq<N: number of values>(v_1,v_2,...,v_N)
     areuniq_{|B∪C|}(B,C)
 ```
 
-### Files and generation
+### 5.3 Files and generation
 
 Because each `areuniqN` depends on smaller macros, headers are sharded by byte budget (for example 256 KiB). When the generator approaches the limit, it starts a new shard, emits include guards, and adds `#include` statements for all newly required child ranges. Dependency ranges shrink with $N$, so later shards often depend on only one prior shard even though earlier ones may need two.
 
@@ -296,15 +298,24 @@ This method provides the following benefits:
 3. Self contained. Placement computable from range only, without global state.
 4. Limited depth. Using shorter groups (such as 1 digit) would reduce directory size as the cost of increasing depth, rendering search more complicated and risking hitting platform limits. Longer groups (3, 4 digits) greatly increase directory size, allowing thousands of headers to be classified in the same directory. Groups of 2 are empirically considered the best trade-off, but the exact value can be exposed for configuration.
 
-### Configuration
+### 5.4 Configuration at generation-time
 
 Configurable constraints include:
 
 - Target `N` range (single value or inclusive interval).
 - Which macro families to emit (`areuniq`, `uniqenum`, or both).
-- Assertion style (`once` vs `all`) and custom error messages.
 - Include guard strategy (classical `#ifndef`, `#pragma once`, or omitted when embedding).
 - Output destination: standard output, monolithic header, or directory tree with size-capped files.
+
+### 5.5 Configuration at compile-time
+
+We expose a preprocessor switch `UNIQENUM_ASSERT` that lets each translation unit choose its preferred diagnostic mode:
+
+- 0: disable all assertions
+- 1: assert-once; one `_Static_assert` checks the Vandermonde product
+- 2: assert-all; each pair $(a_i, a_j)$ triggers its own `_Static_assert`
+
+The user can also define function-like macros `UNIQUENUM_ASSERT_ONCE` and `UNIQENUM_ASSERT_ALL` to customize the static assertion code to suit their needs.
 
 ## 6. Bijective C identifier encoding (`ident(n)`)
 
@@ -459,7 +470,6 @@ This makes `ident(n)` not a convenience, but a necessary component of `uniqenum`
   c_{\text{ident}}(N) = \left\lceil \log_{63} \frac{31N}{26} \right\rceil,
   $$
   ensuring that the cumulative identifier length scales gently even for large $N$.
-- **Assertion variants.** "Assert once” minimizes emitted diagnostics (one `_Static_assert`) and keeps `areuniqN` reusable as an expression; "assert all” expands each pair into its own `_Static_assert`, providing precise culprit identification at the cost of more preprocessing. A hybrid mode ("assert once” for production, "assert all” for debug builds) falls out naturally because both forms reuse the same Vandermonde products.
 - **Generation compactness.** The same recursion tree drives both macro families; caching subtrees allows the generator to emit each `areuniqM` once even if multiple parents reference it.
 
 ## 8. Tooling and Usage
@@ -478,19 +488,6 @@ Key capabilities:
 - Emit a single $N$ or a range $[L, R]$, with `inf` (infinity) supported for open-ended generation (subject to `--max-size`).
 - Select macro families (`--areuniq`, `--uniqenum`) and manage dependencies automatically or opt out when embedding existing proofs.
 - Choose output targets: stdout streaming, monolithic header (`-o file.h`), or directory sharding with configurable byte caps.
-- Customize assertion messages, include guards, and naming templates so the macros integrate with project-specific conventions.
-
-A programmatic API mirrors these options for scripts that need stricter typing or incremental generation. Typical usage:
-
-```ts
-generate({
-    range: { start: 1, end: 1024 },
-    macros: ['areuniq', 'uniqenum'],
-    dependencies: 'include',
-    assert: { when: 'once', msg: ['duplicate enum values: ', { ref: 'name' }] },
-    output: { kind: 'directory', path: 'include/uniqenum', maxFileSize: 256 * 1024 }
-});
-```
 
 Because dependencies are emitted in dependency order, integrating the headers requires only including the shard containing the desired `N`; its prerequisites are already chained via `#include`.
 
@@ -500,11 +497,9 @@ Quantitative evaluation focuses on macro depth, file size, and compiler impact. 
 
 Table 2 — Placeholder for empirical results (fill in after benchmarking).
 
-| N range  | File bytes | Max macro depth | Compile time (s) | Assert mode | Notes                         |
-| -------- | ---------- | --------------- | ---------------- | ----------- | ----------------------------- |
-| 2–64     | [TBD]      | [TBD]           | [TBD]            | once        | Baseline sanity check.        |
-| 65–256   | [TBD]      | [TBD]           | [TBD]            | once        | Sharded into first two files. |
-| 257–1024 | [TBD]      | [TBD]           | [TBD]            | all         | Stress test diagnostics.      |
+| N range  | File bytes | Max macro depth | Compile time (s) | Notes                         |
+| -------- | ---------- | --------------- | ---------------- |  ----------------------------- |
+| 2–64     | [TBD]      | [TBD]           | [TBD]            | Baseline sanity check.        |
 
 The system fails gracefully in two situations:
 
@@ -520,23 +515,23 @@ uniqenum_108.h:11:72: error: static assertion failed: "enum has duplicates: colo
 When "assert all” is enabled the diagnostic pinpoints the colliding pair:
 
 ```text
-uniqenum_108.h:4:22: error: static assertion failed: "duplicate enum values: BLACK BLUE"
+uniqenum_108.h:4:22: error: static assertion failed: "duplicate enum values: BLACK and BLUE"
 ```
 
 ## 10. Standard Compliance
 
 `uniqenum` is intentionally written to remain within the portable core of ISO C. It does not rely on GCC extensions, compiler builtins, variadic macros, or any syntax beyond what the standard guarantees.
 
-### C89
+### C99
 
-Fully supported **when the user supplies a custom static-assert macro**.
+Fully supported when the user supplies a custom static-assert macro.
 All Vandermonde products expand to constant expressions built only from:
 
 - identifier references,
 - integer comparisons `(a != b)`,
 - and integer multiplication of `0` and `1`.
 
-These are valid constant expressions in C89. A simple C89-compatible assertion is:
+These are valid constant expressions in C99. A simple C89-compatible assertion is:
 
 ```c
 #define uniqassert(expr, msg) typedef char uniqenum_check[(expr) ? 1 : -1]
@@ -546,22 +541,13 @@ The generator can be configured to emit `uniqassert(...)` instead of `_Static_as
 
 ### C11 and later
 
-Direct support via `_Static_assert`.
-The default mode uses:
+Direct support via `_Static_assert`. No additional extensions or attributes are required.
 
-```c
-_Static_assert(areuniqN(...), "duplicate enum values");
-```
+### C89
 
-No additional extensions or attributes are required.
+The canonical implementation of `uniqenum` uses variadic macros for compile-time configuration of assertions. However, these macros are only used as a convenience and are not necessary for the uniqueness verification. Thus, C89 support is conceptually possible.
 
 ### Preprocessor behavior
-
-`uniqenum` uses only standard macro features:
-
-- fixed-arity macros,
-- nested macro expansion,
-- and standard constant expressions.
 
 Macro recursion depth is implementation-defined, but the clique recursion ensures logarithmic depth in $\log_{3/2}N$, well below typical limits.
 
@@ -611,7 +597,7 @@ _Static_assert(
     ((BLACK) != (RED)) * ((BLACK) != (WHITE)) *
     ((RED) != (WHITE)) * ((GREEN) != (BLUE)) *
     ((GREEN) != (WHITE)) * ((BLUE) != (WHITE)),
-    "duplicate enum values: " "color" " " "color_t"
+    "enum has duplicate values: " "color" " " "color_t"
 )
 ```
 
@@ -634,15 +620,15 @@ _Static_assert(LEGACY_OK == OK, "synonyms must match");
 #define UNIQa_H
 #define uniqenum1(d,a,b,e)enum d{a b}e
 #define areuniq2(a,b)((a)!=(b))
-#define uniqenum2(f,a,c,b,d,g)enum f{a c,b d}g;_Static_assert(areuniq2(a,b),"duplicate enum values: "#f" "#g)
+#define uniqenum2(f,a,c,b,d,g)enum f{a c,b d}g;_Static_assert(areuniq2(a,b),"enum has duplicate values: "#f" "#g)
 #define areuniq3(a,b,c)areuniq2(a,b)*areuniq2(a,c)*areuniq2(b,c)
-#define uniqenum3(h,a,d,b,e,c,f,i)enum h{a d,b e,c f}i;_Static_assert(areuniq3(a,b,c),"duplicate enum values: "#h" "#i)
+#define uniqenum3(h,a,d,b,e,c,f,i)enum h{a d,b e,c f}i;_Static_assert(areuniq3(a,b,c),"enum has duplicate values: "#h" "#i)
 #define areuniq4(a,b,c,d)areuniq3(a,b,c)*areuniq3(a,b,d)*areuniq2(c,d)
-#define uniqenum4(j,a,e,b,f,c,g,d,h,k)enum j{a e,b f,c g,d h}k;_Static_assert(areuniq4(a,b,c,d),"duplicate enum values: "#j" "#k)
+#define uniqenum4(j,a,e,b,f,c,g,d,h,k)enum j{a e,b f,c g,d h}k;_Static_assert(areuniq4(a,b,c,d),"enum has duplicate values: "#j" "#k)
 #define areuniq5(a,b,c,d,e)areuniq4(a,b,c,d)*areuniq3(a,b,e)*areuniq3(c,d,e)
-#define uniqenum5(l,a,f,b,g,c,h,d,i,e,j,m)enum l{a f,b g,c h,d i,e j}m;_Static_assert(areuniq5(a,b,c,d,e),"duplicate enum values: "#l" "#m)
+#define uniqenum5(l,a,f,b,g,c,h,d,i,e,j,m)enum l{a f,b g,c h,d i,e j}m;_Static_assert(areuniq5(a,b,c,d,e),"enum has duplicate values: "#l" "#m)
 #define areuniq6(a,b,c,d,e,f)areuniq4(a,b,c,d)*areuniq4(a,b,e,f)*areuniq4(c,d,e,f)
-#define uniqenum6(n,a,g,b,h,c,i,d,j,e,k,f,l,o)enum n{a g,b h,c i,d j,e k,f l}o;_Static_assert(areuniq6(a,b,c,d,e,f),"duplicate enum values: "#n" "#o)
+#define uniqenum6(n,a,g,b,h,c,i,d,j,e,k,f,l,o)enum n{a g,b h,c i,d j,e k,f l}o;_Static_assert(areuniq6(a,b,c,d,e,f),"enum has duplicate values: "#n" "#o)
 // ...
 #endif
 ```

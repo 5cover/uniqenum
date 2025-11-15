@@ -1,9 +1,9 @@
 import { scopedIdentFn, ident as pureIdent, type IdentFn, identAntecedent, identAntecedentAssert } from './ident.js';
 import * as g from './g.js';
 import * as fmt from './format.js';
-import { LengthWriter, type Writer, type Teller } from './writing.js';
+import { type Writer, type Teller } from './writing.js';
 import { StableCache } from './StableCache.js';
-import type { CodeGenerator, GenerateConfig, MacroFamily } from './types.js';
+import type { CodeGenerator, GeneratorConfig } from './types.js';
 
 const iaEnum = identAntecedentAssert('enum');
 
@@ -12,15 +12,43 @@ interface IdentAntecedentPair {
     i: number | null;
 }
 
+const joinMacroName = `_UNIQJ `;
+const assertMacroName = `_UNIQA`;
+
 export class C11CodeGenerator implements CodeGenerator {
-    constructor(private readonly cfg: GenerateConfig) {}
+    constructor(private readonly cfg: GeneratorConfig) {}
+
+    readonly headers = {
+        uniqenum: `#if UNIQENUM_ASSERT==2
+#define _UNIQA(N,n,t,...)areuniq##N(__VA_ARGS__)
+#elif UNIQENUM_ASSERT==0
+#define _UNIQA(N,n,t,...)
+#else
+#ifdef UNIQENUM_ASSERT_ONCE
+#define _UNIQA(N,n,t,...);UNIQENUM_ASSERT_ONCE(areuniq##N(__VA_ARGS__),n,t)
+#else
+#define _UNIQA(N,n,t,...)_Static_assert(areuniq##N(__VA_ARGS__),"enum has duplicate values: "#n" "#t)
+#endif
+#endif
+`,
+        areuniq: `#if UNIQENUM_ASSERT==2
+#define _UNIQJ ;
+#ifdef UNIQENUM_ASSERT_ALL
+#define areuniq2(a,b);UNIQENUM_ASSERT_ALL((a)!=(b),a,b)
+#else
+#define areuniq2(a,b)_Static_assert((a)!=(b),"duplicate enum values: "#a" and "#b)
+#endif
+#else 
+#define _UNIQJ *
+#define areuniq2(a,b)((a)!=(b))
+#endif
+`,
+    };
+
     readonly bases = {
-        uniqenum: -Infinity,
-        // largest N for which the expanded generation gives shorted code than the k=3 cliques method. subject to change
-        // areuniq3(a,b,c)areuniq2(a,b)*areuniq2(a,c)*areuniq2(b,c)
-        // areuniq3(a,b,c)((a)!=(b))*((a)!=(c))*((b)!=(c))
-        areuniq: 3,
-    } as const;
+        uniqenum: 1,
+        areuniq: 2,
+    };
 
     private readonly nameAreuniq = new StableCache<number, { ident: string; i: number | null }>(n => {
         const ident = fmt.format(fmt.string, this.cfg.names.areuniq, { n: n.toString() });
@@ -31,52 +59,19 @@ export class C11CodeGenerator implements CodeGenerator {
     });
 
     readonly areuniq = (w: Writer, n: number) => {
-        // useless under 2
-        if (n < 2) return w;
-
-        // trivial base case
-        if (n === 2) {
-            return this.genAreuniq(w, n, w => this.pair(w, 0, 1));
-        }
-
-        return (n > this.bases.areuniq ? this.areuniqCliques : this.areuniqExpanded)(w, n);
-    };
-
-    private readonly areuniqCliques = (w: Writer, n: number) => {
+        // useless under 2. and N=2 is already provided by the header.
+        if (n <= 2) return w;
         const k = 3;
         const cliques = this.partitionCliques(n, k);
         const ident = scopedIdentFn(cliques.map(([name]) => name.i).filter(i => i !== null));
         return this.genAreuniq(
             w,
             n,
-            w =>
-                w.join(this.cfg.assert.when === 'all' ? ';' : '*', cliques, (w, [name, clique]) =>
-                    callMacro(w, name.ident, g.map(clique, ident))
-                ),
+            w => w.join(joinMacroName, cliques, (w, [name, clique]) => callMacro(w, name.ident, g.map(clique, ident))),
             ident
         );
     };
 
-    private readonly areuniqExpanded = (w: Writer, n: number) => {
-        return this.genAreuniq(w, n, w => w.join('*', g.combinations(n), (w, [a, b]) => this.pair(w, a, b)));
-    };
-
-    private readonly pair = (w: Writer, i1: number, i2: number) => {
-        const enumerator1 = pureIdent(i1);
-        const enumerator2 = pureIdent(i2);
-        return this.cfg.assert.when === 'all'
-            ? w
-                  .str('_Static_assert(')
-                  .str('((')
-                  .str(enumerator1)
-                  .str(')!=(')
-                  .str(enumerator2)
-                  .str('))')
-                  .str(',')
-                  .str(fmt.format(fmt.cstring, this.cfg.assert.msg, { enumerator1, enumerator2 }))
-                  .str(')')
-            : w.str('((').str(enumerator1).str(')!=(').str(enumerator2).str('))');
-    };
     private readonly genAreuniq = (w: Writer, n: number, body: Teller, ident = pureIdent) => {
         return defineMacro(w, this.nameAreuniq.get(n).ident, g.seq(n, ident), body);
     };
@@ -87,7 +82,6 @@ export class C11CodeGenerator implements CodeGenerator {
         if (n === 1) {
             return this.genUniqenum(w, nameUniqenum, new UniqenumInfo(n, pureIdent));
         }
-
         const scope = [iaEnum];
         {
             let ia: number | null;
@@ -95,21 +89,17 @@ export class C11CodeGenerator implements CodeGenerator {
             if (null !== (ia = identAntecedent(this.nameAreuniq.get(n).ident))) scope.push(ia);
         }
         const info = new UniqenumInfo(n, scopedIdentFn(scope));
-        const a1 = this.nameAreuniq.get(n).ident;
-        const a2 = info.keys();
         return this.genUniqenum(w, nameUniqenum, info, w =>
-            this.cfg.assert.when === 'all'
-                ? callMacro(w.str(';'), a1, a2)
-                : callMacro(w.str(';_Static_assert('), a1, a2)
-                      .str(',')
-                      .str(
-                          fmt.format(fmt.cstring, this.cfg.assert.msg, {
-                              n: n.toString(),
-                              name: info.name,
-                              type: info.type,
-                          })
-                      )
-                      .str(')')
+            w
+                .str(' _UNIQA(')
+                .int(n)
+                .str(',')
+                .str(info.name)
+                .str(',')
+                .str(info.type)
+                .str(',')
+                .join(',', info.keys())
+                .str(')')
         );
     };
 
@@ -177,15 +167,15 @@ class UniqenumInfo {
     ) {}
 
     get name() {
-        return this.ident(2 * this.n + 1);
+        return this.ident(this.n);
     }
 
     get type() {
-        return this.ident(2 * (this.n + 1));
+        return this.ident(this.n + 1);
     }
 
     values() {
-        return g.seq(this.n, i => this.ident(this.n + i));
+        return g.seq(this.n, i => this.ident(this.n + 2 + i));
     }
 
     keys() {
@@ -194,7 +184,18 @@ class UniqenumInfo {
 
     *params() {
         yield this.name;
-        for (const p of g.seq(2 * this.n, i => this.ident(Math.trunc(i / 2) + +(i % 2) * this.n))) {
+        /**
+         * 0 -> 0
+         * 1 -> n+2
+         * 2 -> 1
+         * 3 -> n+3
+         * 4 -> 2
+         * 5 -> n+4
+         * 6 -> 3
+         * 7 -> n+5
+         * ...
+         */
+        for (const p of g.seq(2 * this.n, i => this.ident((i >> 1) + (i % 2) * (this.n + 2)))) {
             yield p;
         }
         yield this.type;

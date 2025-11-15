@@ -30,6 +30,8 @@ export const emitFile: EmitFn<number> = (cgen, cfg, outFd) => {
     const w = new FdWriter(outFd);
     let n = cfg.N.start;
     cfg.includeGuard.start(w, fileSlug(endN));
+    if (doAreuniq) w.str(cgen.headers.areuniq);
+    if (doUniqenum) w.str(cgen.headers.uniqenum);
     while (n++ < endN) {
         if (doAreuniq) cgen.areuniq(w, n);
         if (doUniqenum) cgen.uniqenum(w, n);
@@ -42,6 +44,10 @@ export const emitFile: EmitFn<number> = (cgen, cfg, outFd) => {
 
 export const sizingPass = (cfg: EmitConfig, cgen: CodeGenerator, doAreuniq: number, doUniqenum: number) => {
     let n = cfg.N.start;
+    const constSize =
+        cfg.includeGuard.end.length +
+        doAreuniq * cgen.headers.areuniq.length +
+        doUniqenum * cgen.headers.uniqenum.length;
     let macroSize = 0;
     let totalSize = 0;
     while (n <= cfg.N.end && totalSize <= cfg.maxSize) {
@@ -50,8 +56,7 @@ export const sizingPass = (cfg: EmitConfig, cgen: CodeGenerator, doAreuniq: numb
         macroSize +=
             doAreuniq * LengthWriter.ret(w => cgen.areuniq(w, n)) +
             doUniqenum * LengthWriter.ret(w => cgen.uniqenum(w, n));
-        totalSize =
-            LengthWriter.ret(w => cfg.includeGuard.start(w, fileSlug(n))) + macroSize + cfg.includeGuard.end.length;
+        totalSize = LengthWriter.ret(w => cfg.includeGuard.start(w, fileSlug(n))) + macroSize + constSize;
         n++;
     }
     return { endN: n - 2, totalSize };

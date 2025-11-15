@@ -1,0 +1,5 @@
+#ifndef UNIQ_b8_H
+#define UNIQ_b8_H
+#include "../../areuniq/8/areuniq80.h"
+#define uniqenum80(aC,a,aE,b,aF,c,aG,d,aH,e,aI,f,aJ,g,aK,h,aL,i,aM,j,aN,k,aO,l,aP,m,aQ,n,aR,o,aS,p,aT,q,aU,r,aV,s,aW,t,aX,u,aY,v,aZ,w,a_,x,a1,y,a2,z,a3,A,a4,B,a5,C,a6,D,a7,E,a8,F,a9,G,a0,H,ba,I,bb,J,bc,K,bd,L,be,M,bf,N,bg,O,bh,P,bi,Q,bj,R,bk,S,bl,T,bm,U,bn,V,bo,W,bp,X,bq,Y,br,Z,bs,aa,bt,ab,bu,ac,bv,ad,bw,ae,bx,af,by,ag,bz,ah,bA,ai,bB,aj,bC,ak,bD,al,bE,am,bF,an,bG,ao,bH,ap,bI,aq,bJ,ar,bK,as,bL,at,bM,au,bN,av,bO,aw,bP,ax,bQ,ay,bR,az,bS,aA,bT,aB,bU,aD)enum aC{a aE,b aF,c aG,d aH,e aI,f aJ,g aK,h aL,i aM,j aN,k aO,l aP,m aQ,n aR,o aS,p aT,q aU,r aV,s aW,t aX,u aY,v aZ,w a_,x a1,y a2,z a3,A a4,B a5,C a6,D a7,E a8,F a9,G a0,H ba,I bb,J bc,K bd,L be,M bf,N bg,O bh,P bi,Q bj,R bk,S bl,T bm,U bn,V bo,W bp,X bq,Y br,Z bs,aa bt,ab bu,ac bv,ad bw,ae bx,af by,ag bz,ah bA,ai bB,aj bC,ak bD,al bE,am bF,an bG,ao bH,ap bI,aq bJ,ar bK,as bL,at bM,au bN,av bO,aw bP,ax bQ,ay bR,az bS,aA bT,aB bU}aD _UNIQA(80,aC,aD,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,aa,ab,ac,ad,ae,af,ag,ah,ai,aj,ak,al,am,an,ao,ap,aq,ar,as,at,au,av,aw,ax,ay,az,aA,aB)
+#endif

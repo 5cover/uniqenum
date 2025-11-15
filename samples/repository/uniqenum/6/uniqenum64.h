@@ -1,0 +1,5 @@
+#ifndef UNIQ_bS_H
+#define UNIQ_bS_H
+#include "../../areuniq/6/areuniq64.h"
+#define uniqenum64(am,a,ao,b,ap,c,aq,d,ar,e,as,f,at,g,au,h,av,i,aw,j,ax,k,ay,l,az,m,aA,n,aB,o,aC,p,aD,q,aE,r,aF,s,aG,t,aH,u,aI,v,aJ,w,aK,x,aL,y,aM,z,aN,A,aO,B,aP,C,aQ,D,aR,E,aS,F,aT,G,aU,H,aV,I,aW,J,aX,K,aY,L,aZ,M,a_,N,a1,O,a2,P,a3,Q,a4,R,a5,S,a6,T,a7,U,a8,V,a9,W,a0,X,ba,Y,bb,Z,bc,aa,bd,ab,be,ac,bf,ad,bg,ae,bh,af,bi,ag,bj,ah,bk,ai,bl,aj,bm,ak,bn,al,bo,an)enum am{a ao,b ap,c aq,d ar,e as,f at,g au,h av,i aw,j ax,k ay,l az,m aA,n aB,o aC,p aD,q aE,r aF,s aG,t aH,u aI,v aJ,w aK,x aL,y aM,z aN,A aO,B aP,C aQ,D aR,E aS,F aT,G aU,H aV,I aW,J aX,K aY,L aZ,M a_,N a1,O a2,P a3,Q a4,R a5,S a6,T a7,U a8,V a9,W a0,X ba,Y bb,Z bc,aa bd,ab be,ac bf,ad bg,ae bh,af bi,ag bj,ah bk,ai bl,aj bm,ak bn,al bo}an _UNIQA(64,am,an,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,aa,ab,ac,ad,ae,af,ag,ah,ai,aj,ak,al)
+#endif

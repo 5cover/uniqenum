@@ -17,8 +17,8 @@ const B = 63; // letters + _ + digits
     buildCharMap(-4, 53, 62); // digits 1-9
     buildCharMap('0', 62);
 
-    assert(n2char.size === B, 'n2char must be of size B');
-    assert(char2n.size === B, 'char2n must be of size B');
+    assert(n2char.size === B, `n2char must be of size B, but size is ${n2char.size}`);
+    assert(char2n.size === B, `char2n must be of size B, but size is ${char2n.size}`);
 }
 
 export type IdentFn = typeof ident;

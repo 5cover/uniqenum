@@ -1,0 +1,5 @@
+#ifndef UNIQ_bz_H
+#define UNIQ_bz_H
+#include "../../areuniq/4/areuniq44-45.h"
+#define uniqenum45(T,a,V,b,W,c,X,d,Y,e,Z,f,aa,g,ab,h,ac,i,ad,j,ae,k,af,l,ag,m,ah,n,ai,o,aj,p,ak,q,al,r,am,s,an,t,ao,u,ap,v,aq,w,ar,x,as,y,at,z,au,A,av,B,aw,C,ax,D,ay,E,az,F,aA,G,aB,H,aC,I,aD,J,aE,K,aF,L,aG,M,aH,N,aI,O,aJ,P,aK,Q,aL,R,aM,S,aN,U)enum T{a V,b W,c X,d Y,e Z,f aa,g ab,h ac,i ad,j ae,k af,l ag,m ah,n ai,o aj,p ak,q al,r am,s an,t ao,u ap,v aq,w ar,x as,y at,z au,A av,B aw,C ax,D ay,E az,F aA,G aB,H aC,I aD,J aE,K aF,L aG,M aH,N aI,O aJ,P aK,Q aL,R aM,S aN}U _UNIQA(45,T,U,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S)
+#endif

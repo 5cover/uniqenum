@@ -1,0 +1,5 @@
+#ifndef UNIQ_bC_H
+#define UNIQ_bC_H
+#include "../../areuniq/4/areuniq48-49.h"
+#define uniqenum48(W,a,Y,b,Z,c,aa,d,ab,e,ac,f,ad,g,ae,h,af,i,ag,j,ah,k,ai,l,aj,m,ak,n,al,o,am,p,an,q,ao,r,ap,s,aq,t,ar,u,as,v,at,w,au,x,av,y,aw,z,ax,A,ay,B,az,C,aA,D,aB,E,aC,F,aD,G,aE,H,aF,I,aG,J,aH,K,aI,L,aJ,M,aK,N,aL,O,aM,P,aN,Q,aO,R,aP,S,aQ,T,aR,U,aS,V,aT,X)enum W{a Y,b Z,c aa,d ab,e ac,f ad,g ae,h af,i ag,j ah,k ai,l aj,m ak,n al,o am,p an,q ao,r ap,s aq,t ar,u as,v at,w au,x av,y aw,z ax,A ay,B az,C aA,D aB,E aC,F aD,G aE,H aF,I aG,J aH,K aI,L aJ,M aK,N aL,O aM,P aN,Q aO,R aP,S aQ,T aR,U aS,V aT}X _UNIQA(48,W,X,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V)
+#endif
