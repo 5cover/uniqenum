@@ -29,8 +29,8 @@
 - [8. Tooling and Usage](#8-tooling-and-usage)
 - [9. Evaluation](#9-evaluation)
 - [10. Standard Compliance](#10-standard-compliance)
-  - [10.1 C99](#101-c99)
-  - [10.2 C11 and later](#102-c11-and-later)
+  - [10.1 C11 and later](#101-c11-and-later)
+  - [10.2 C99](#102-c99)
   - [10.3 C89](#103-c89)
   - [10.4 Preprocessor behavior](#104-preprocessor-behavior)
 - [11. Discussion / Future Work](#11-discussion--future-work)
@@ -522,7 +522,11 @@ uniqenum_108.h:4:22: error: static assertion failed: "duplicate enum values: BLA
 
 `uniqenum` is intentionally written to remain within the portable core of ISO C. It does not rely on GCC extensions, compiler builtins, variadic macros, or any syntax beyond what the standard guarantees.
 
-### 10.1 C99
+### 10.1 C11 and later
+
+Direct support via `_Static_assert`. No additional extensions or attributes are required.
+
+### 10.2 C99
 
 Fully supported when the user supplies a custom static-assert macro.
 All Vandermonde products expand to constant expressions built only from:
@@ -538,10 +542,6 @@ These are valid constant expressions in C99. A simple C89-compatible assertion i
 ```
 
 The generator can be configured to emit `uniqassert(...)` instead of `_Static_assert`.
-
-### 10.2 C11 and later
-
-Direct support via `_Static_assert`. No additional extensions or attributes are required.
 
 ### 10.3 C89
 
