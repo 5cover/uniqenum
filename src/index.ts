@@ -1,5 +1,5 @@
 import { closeSync, openSync } from 'fs';
-import { C11CodeGenerator } from './CodeGenerator.js';
+import { CCodeGenerator } from './CodeGenerator.js';
 import {
     type GeneratorConfigNames,
     type EmitConfig,
@@ -39,7 +39,7 @@ export type ApiOptions = {
  * @returns
  */
 export function generate(o: ApiOptions): GenerationSummary {
-    const cgen = new C11CodeGenerator({
+    const cgen = new CCodeGenerator({
         names: {
             areuniq: o.names?.areuniq ?? DEFAULT_NAMES.areuniq,
             uniqenum: o.names?.uniqenum ?? DEFAULT_NAMES.uniqenum,
