@@ -39,7 +39,7 @@ export class C11CodeGenerator implements CodeGenerator {
 #define areuniq2(a,b)_Static_assert((a)!=(b),"duplicate enum values: "#a" and "#b)
 #endif
 #else 
-#define _UNIQJ *
+#define _UNIQJ &&
 #define areuniq2(a,b)((a)!=(b))
 #endif
 `,
