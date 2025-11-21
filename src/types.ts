@@ -33,8 +33,19 @@ export type AssertAllRefs = 'enumerator1' | 'enumerator2';
 
 export type AssertOnceRefs = 'n' | 'name' | 'type';
 
+export interface AreuniqMetrics {
+    n: number;
+    depth: number;
+    comparisons: number;
+}
+
+export interface AreuniqMetricsRecorder {
+    record(metrics: AreuniqMetrics): void;
+}
+
 export interface GeneratorConfig {
     names: GeneratorConfigNames;
+    metricsRecorder?: AreuniqMetricsRecorder;
 }
 
 export interface EmitConfig {

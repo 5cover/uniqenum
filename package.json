@@ -28,6 +28,7 @@
     "@commander-js/extra-typings": "^14.0.0",
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^24.10.0",
+    "chartjs-node-canvas": "^5.0.0",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   },
