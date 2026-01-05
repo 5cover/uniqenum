@@ -99,7 +99,7 @@ We want a compile-time mechanism that:
 To fulfill this goal, we propose two macro families: *areuniq* and *uniqenum*.
 
 - `uniqenumN` expands to a valid enumeration definition with $N$ entries;
-- `areuniqN` evaluates to a compile-time boolean proving that all $N$ values are distinct.
+- `areuniqN` evaluates to an integer constant expression (boolean-like, 0 or 1) proving that all $N$ values are distinct.
 
 ## 4. Theoretical Foundation
 
@@ -138,7 +138,7 @@ Four strategies were investigated before settling on the clique method. Their ch
 
 Table 1 — Comparative summary of Vandermonde recursion strategies.
 
-| Method          | Recurrence idea                                                       | Depth bound                  | Child sizes per level                        | Per-level textual cost (number of identi  fiers spelled)                                                   | Notes                                                                                                                                                |
+| Method          | Recurrence idea                                                       | Depth bound                  | Child sizes per level                        | Per-level textual cost (number of identi  fiers spelled)                                                | Notes                                                                                                                                                |
 | --------------- | --------------------------------------------------------------------- | ---------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Expanded        | Emit every unordered pair once                                        | 1                            | —                                            | $2\binom{N}{2} = N(N-1)$ identifiers                                                                    | Baseline; quadratic size.                                                                                                                            |
 | Row             | Add rows one by one (grouped by right operand)                        | $N-1$                        | single child of size $N-1$                   | $3N-2$, reducible to $2N-1$ with additional helper macros the last row                                  | Linear but exceeds depth limits for large $N$. Can require helpers for the last row.                                                                 |
@@ -237,13 +237,15 @@ Base cases (`N=2` and `N=3`) are emitted explicitly using straight products of d
 
 ### 5.1 `uniqenumN`
 
-Conceptually, `uniqenumN` accepts $2N+2$ parameters:
+Conceptually, `uniqenumN` accepts $2N+2$ arguments:
 
 - the enumeration name,
 - N alternating (key, value) slots, where a missing value means to use the implicit C enumeration rule,
 - and the `typedef` name.
 
-Informally:
+Arguments must be side-effect-free constant expressions.
+
+Usage:
 
 ```text
 uniqenum<N>(enum_name,
@@ -263,6 +265,8 @@ Otherwise, `uniqenumN` calls `areuniqN` with each enumeration value, which expan
 
 ### 5.2 `areuniqN`
 
+`areuniqN(v1,...,vN)` expands to an integer constant expression that is nonzero if and only if all `vi` are pairwise unequal, assuming each `vi` is an integer constant expression and side-effect-free.
+
 Accepts $N$ parameters.
 
 Informally:
@@ -273,8 +277,8 @@ areuniq<N: number of values>(v_1,v_2,...,v_N)
 
 ```c
 #define areuniqN(args...) \
-    areuniq_{|A∪B|}(A,B) * \
-    areuniq_{|A∪C|}(A,C) * \
+    areuniq_{|A∪B|}(A,B) && \
+    areuniq_{|A∪C|}(A,C) && \
     areuniq_{|B∪C|}(B,C)
 ```
 
@@ -315,7 +319,7 @@ We expose a preprocessor switch `UNIQENUM_ASSERT` that lets each translation uni
 - 1: assert-once; one `_Static_assert` checks the Vandermonde product
 - 2: assert-all; each pair $(a_i, a_j)$ triggers its own `_Static_assert`
 
-The user can also define function-like macros `UNIQUENUM_ASSERT_ONCE` and `UNIQENUM_ASSERT_ALL` to customize the static assertion code to suit their needs.
+The user can also define function-like macros `uniqenum_ASSERT_ONCE` and `UNIQENUM_ASSERT_ALL` to customize the static assertion code to suit their needs.
 
 ## 6. Bijective C identifier encoding (`ident(n)`)
 
@@ -323,7 +327,7 @@ Large Vandermonde products require macro parameters to be uniquely named, compac
 
 ### 6.1 Alphabet and constraints
 
-A C identifier must begin with an ASCII letter or underscore, and subsequent characters may additionally include digits. For portability and readability, `uniqenum` restricts itself to the following **ordered alphabet**:
+A C identifier must begin with an ASCII letter or underscore, and subsequent characters may additionally include digits. For portability and readability, `uniqenum` restricts itself to the following ordered alphabet:
 
 - First character: `F = 52` symbols
   `a–z`, `A–Z`
@@ -386,15 +390,18 @@ This ensures a monotone, collision-free, gap-free sequence analogous to spreadsh
 
 #### Example
 
-Indices 0–55 map to:
+Indices 0–51 map to:
 
 ```text
 a,b,c,...,z,A,B,...,Z
 ```
 
-Index 56 produces `"a_"`.
-Index 57 produces `"a1"`.
-Index 118 produces `"b0"`.
+Index 52 produces `"aa"`.
+
+Index 53 produces `"ab"`.
+
+Index 177 produces `"b0"`.
+
 Everything behaves monotonically.
 
 ### 6.3 Length closed form
@@ -408,7 +415,7 @@ L(n) =
 \right\rceil.
 $$
 
-Because $B = 63$ is the largest alphabet allowed in portable C identifiers **after the first character**, this logarithmic growth is **asymptotically optimal**. Any identifier family respecting C's lexical rules must have length at least:
+Because $B = 63$ is the largest alphabet allowed in portable C identifiers after the first character, this logarithmic growth is asymptotically optimal. Any identifier family respecting C's lexical rules must have length at least:
 
 $$
 \Omega(\log_{63} n).
@@ -450,7 +457,7 @@ This non-accidental "spreadsheet monotonicity” also keeps incremental generati
 
 ### 6.6 Impact on code size
 
-The Vandermonde expansion uses every identifier in the signature of `areuniqN` and `uniqenumN`. Because each identifier appears once or twice per macro, reducing the identifier length by even a constant factor would reduce the total textual size by $\Omega(N)$. Since the current encoding achieves the **shortest possible average length allowed by C**, it contributes directly to the linear-in-N optimality of the generated headers.
+The Vandermonde expansion uses every identifier in the signature of `areuniqN` and `uniqenumN`. Because each identifier appears once or twice per macro, reducing the identifier length by even a constant factor would reduce the total textual size by $\Omega(N)$. Since the current encoding achieves the shortest possible average length allowed by C, it contributes directly to the linear-in-N optimality of the generated headers.
 
 In other words:
 
@@ -466,6 +473,7 @@ This makes `ident(n)` not a convenience, but a necessary component of `uniqenum`
 - **Code size vs. macro depth.** Choosing $k=3$ saturates the cost lower bound; larger $k$ would outpace it without substantial depth gains for practical $N$. Triangle recursion offers slightly shallower trees but introduces sizable helper macros for the central rectangle.
 - **Human readability vs. generator compactness.** Retaining ordered parameters within each block lets developers map macro arguments back to their enums, at the expense of repeating identifiers instead of using automatically numbered temporaries.
 - **Deterministic identifiers.** The mixed-radix `ident` encoder maintains short names and predictable growth governed by
+
   $$
   c_{\text{ident}}(N) = \left\lceil \log_{63} \frac{31N}{26} \right\rceil,
   $$
@@ -497,9 +505,9 @@ Quantitative evaluation focuses on macro depth, file size, and compiler impact. 
 
 Table 2 — Placeholder for empirical results (fill in after benchmarking).
 
-| N range  | File bytes | Max macro depth | Compile time (s) | Notes                         |
-| -------- | ---------- | --------------- | ---------------- |  ----------------------------- |
-| 2–64     | [TBD]      | [TBD]           | [TBD]            | Baseline sanity check.        |
+| N range | File bytes | Max macro depth | Compile time (s) | Notes                  |
+| ------- | ---------- | --------------- | ---------------- | ---------------------- |
+| 2–64    | [TBD]      | [TBD]           | [TBD]            | Baseline sanity check. |
 
 The system fails gracefully in two situations:
 
@@ -545,7 +553,7 @@ The generator can be configured to emit `uniqassert(...)` instead of `_Static_as
 
 ### 10.3 C89
 
-The canonical implementation of `uniqenum` uses variadic macros for compile-time configuration of assertions. However, these macros are only used as a convenience and are not necessary for the uniqueness verification. Thus, C89 support is conceptually possible.
+The canonical implementation of `uniqenum` uses variadic macros for compile-time configuration of assertions. However, these macros are only used as a convenience and are not necessary for the uniqueness verification. Thus, C89 support is possible.
 
 ### 10.4 Preprocessor behavior
 
@@ -591,15 +599,17 @@ typedef enum color {
     WHITE = 0xffffff
 } color_t;
 _Static_assert(
-    ((BLACK) != (RED)) * ((BLACK) != (GREEN)) * ((RED) != (GREEN)) *
-    ((BLACK) != (RED)) * ((BLACK) != (BLUE)) *
-    ((RED) != (BLUE)) * ((GREEN) != (BLUE)) *
-    ((BLACK) != (RED)) * ((BLACK) != (WHITE)) *
-    ((RED) != (WHITE)) * ((GREEN) != (BLUE)) *
-    ((GREEN) != (WHITE)) * ((BLUE) != (WHITE)),
+    ((BLACK) != (RED)) && ((BLACK) != (GREEN)) && ((RED) != (GREEN)) &&
+    ((BLACK) != (RED)) && ((BLACK) != (BLUE)) &&
+    ((RED) != (BLUE)) && ((GREEN) != (BLUE)) &&
+    ((BLACK) != (RED)) && ((BLACK) != (WHITE)) &&
+    ((RED) != (WHITE)) && ((GREEN) != (BLUE)) &&
+    ((GREEN) != (WHITE)) && ((BLUE) != (WHITE)),
     "enum has duplicate values: " "color" " " "color_t"
 )
 ```
+
+Note the cliques method produces duplicate couples, but they are insignificant in the final result.
 
 Developers may optionally split synonyms out of the check:
 
@@ -621,13 +631,13 @@ _Static_assert(LEGACY_OK == OK, "synonyms must match");
 #define uniqenum1(d,a,b,e)enum d{a b}e
 #define areuniq2(a,b)((a)!=(b))
 #define uniqenum2(f,a,c,b,d,g)enum f{a c,b d}g;_Static_assert(areuniq2(a,b),"enum has duplicate values: "#f" "#g)
-#define areuniq3(a,b,c)areuniq2(a,b)*areuniq2(a,c)*areuniq2(b,c)
+#define areuniq3(a,b,c)areuniq2(a,b)&&areuniq2(a,c)&&areuniq2(b,c)
 #define uniqenum3(h,a,d,b,e,c,f,i)enum h{a d,b e,c f}i;_Static_assert(areuniq3(a,b,c),"enum has duplicate values: "#h" "#i)
-#define areuniq4(a,b,c,d)areuniq3(a,b,c)*areuniq3(a,b,d)*areuniq2(c,d)
+#define areuniq4(a,b,c,d)areuniq3(a,b,c)&&areuniq3(a,b,d)&&areuniq2(c,d)
 #define uniqenum4(j,a,e,b,f,c,g,d,h,k)enum j{a e,b f,c g,d h}k;_Static_assert(areuniq4(a,b,c,d),"enum has duplicate values: "#j" "#k)
-#define areuniq5(a,b,c,d,e)areuniq4(a,b,c,d)*areuniq3(a,b,e)*areuniq3(c,d,e)
+#define areuniq5(a,b,c,d,e)areuniq4(a,b,c,d)&&areuniq3(a,b,e)&&areuniq3(c,d,e)
 #define uniqenum5(l,a,f,b,g,c,h,d,i,e,j,m)enum l{a f,b g,c h,d i,e j}m;_Static_assert(areuniq5(a,b,c,d,e),"enum has duplicate values: "#l" "#m)
-#define areuniq6(a,b,c,d,e,f)areuniq4(a,b,c,d)*areuniq4(a,b,e,f)*areuniq4(c,d,e,f)
+#define areuniq6(a,b,c,d,e,f)areuniq4(a,b,c,d)&&areuniq4(a,b,e,f)&&areuniq4(c,d,e,f)
 #define uniqenum6(n,a,g,b,h,c,i,d,j,e,k,f,l,o)enum n{a g,b h,c i,d j,e k,f l}o;_Static_assert(areuniq6(a,b,c,d,e,f),"enum has duplicate values: "#n" "#o)
 // ...
 #endif

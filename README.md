@@ -18,7 +18,7 @@ uniqenum<N: number of enumerators>(<enum-name>,
 <typedef-name>)
 ```
 
-`enum-name` and `typedef-name` can be blank.
+`enum-name` and `typedef-name` can be blank. Arguments must be side-effect-free constant expressions.
 
 Usage:
 
@@ -31,7 +31,7 @@ uniqenum5(,A4,=1,B4,=2,C4,=3,D4,=4,E4,=5,);               // enum{}             
 
 ## Macro configuration
 
-Before including `areuniq` or `uniquenum` headers, you can define configuration macros to alter assertion behavior.
+Before including `areuniq` or `uniqenum` headers, you can define configuration macros to alter assertion behavior.
 
 ### `UNIQENUM_ASSERT`
 
