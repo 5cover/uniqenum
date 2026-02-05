@@ -319,7 +319,7 @@ We expose a preprocessor switch `UNIQENUM_ASSERT` that lets each translation uni
 - 1: assert-once; one `_Static_assert` checks the Vandermonde product
 - 2: assert-all; each pair $(a_i, a_j)$ triggers its own `_Static_assert`
 
-The user can also define function-like macros `uniqenum_ASSERT_ONCE` and `UNIQENUM_ASSERT_ALL` to customize the static assertion code to suit their needs.
+The user can also define function-like macros `UNIQENUM_ASSERT_ONCE` and `UNIQENUM_ASSERT_ALL` to customize the static assertion code to suit their needs.
 
 ## 6. Bijective C identifier encoding (`ident(n)`)
 
