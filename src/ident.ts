@@ -137,6 +137,3 @@ export function identAntecedentAssert(ident: string): number {
     assert(i !== null, 'enum must be a valid ident');
     return i;
 }
-console.log(ident(52))
-console.log(ident(53))
-console.log(ident(177))

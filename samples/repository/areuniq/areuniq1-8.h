@@ -4,12 +4,12 @@
 #if UNIQENUM_ASSERT==2
 #define _UNIQJ ;
 #ifdef UNIQENUM_ASSERT_ALL
-#define areuniq2(a,b);UNIQENUM_ASSERT_ALL((a)!=(b),a,b)
+#define areuniq2(a,b)UNIQENUM_ASSERT_ALL((a)!=(b),a,b)
 #else
 #define areuniq2(a,b)_Static_assert((a)!=(b),"duplicate enum values: "#a" and "#b)
 #endif
 #else 
-#define _UNIQJ *
+#define _UNIQJ &&
 #define areuniq2(a,b)((a)!=(b))
 #endif
 #define areuniq3(a,b,c)areuniq2(a,b)_UNIQJ areuniq2(a,c)_UNIQJ areuniq2(b,c)

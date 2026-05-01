@@ -66,7 +66,7 @@ enum Color {
 ```
 
 The problem becomes harder when enumeration values are computed using macros.
-Two expressions may be *semantically different* yet evaluate to the *same* integer after preprocessing:
+Two expressions may be _semantically different_ yet evaluate to the _same_ integer after preprocessing:
 
 ```c
 #define OFFSET   0
@@ -96,7 +96,7 @@ We want a compile-time mechanism that:
 5. and scales to large enums generated mechanically,
 6. is adapted for practical, everyday use when authoring or editing code.
 
-To fulfill this goal, we propose two macro families: *areuniq* and *uniqenum*.
+To fulfill this goal, we propose two macro families: _areuniq_ and _uniqenum_.
 
 - `uniqenumN` expands to a valid enumeration definition with $N$ entries;
 - `areuniqN` evaluates to an integer constant expression (boolean-like, 0 or 1) proving that all $N$ values are distinct.
@@ -138,10 +138,10 @@ Four strategies were investigated before settling on the clique method. Their ch
 
 Table 1 — Comparative summary of Vandermonde recursion strategies.
 
-| Method          | Recurrence idea                                                       | Depth bound                  | Child sizes per level                        | Per-level textual cost (number of identi  fiers spelled)                                                | Notes                                                                                                                                                |
+| Method          | Recurrence idea                                                       | Depth bound                  | Child sizes per level                        | Per-level textual cost (number of identifiers spelled)                                                  | Notes                                                                                                                                                |
 | --------------- | --------------------------------------------------------------------- | ---------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Expanded        | Emit every unordered pair once                                        | 1                            | —                                            | $2\binom{N}{2} = N(N-1)$ identifiers                                                                    | Baseline; quadratic size.                                                                                                                            |
-| Row             | Add rows one by one (grouped by right operand)                        | $N-1$                        | single child of size $N-1$                   | $3N-2$, reducible to $2N-1$ with additional helper macros the last row                                  | Linear but exceeds depth limits for large $N$. Can require helpers for the last row.                                                                 |
+| Row             | Add rows one by one (grouped by right operand)                        | $N-1$                        | single child of size $N-1$                   | $3N-2$, reducible to $2N-1$ with additional helper macros for the last row                              | Linear but exceeds depth limits for large $N$. Can require helpers for the last row.                                                                 |
 | Triangles       | Split right triangle into central near-square plus two half triangles | $\lceil \log_2 N \rceil$     | $\lfloor N/2 \rfloor$, $\lceil N/2 \rceil$   | Between $2N$ and $N+\lfloor N^2/2 \rfloor$, depending on available helpers for the central near-square. | Balances depth but requires many helper forms.                                                                                                       |
 | Cliques ($k=3$) | Cover complete graph with pairwise unions of $k$ balanced partitions  | $\lceil \log_{3/2} N \rceil$ | $\lfloor 2N/3 \rfloor$, $\lceil 2N/3 \rceil$ | $N(k-1)$                                                                                                | Adopted method; linear text and shallow depth. The quadratic&rarr;linear reduction from $N(N-1)$ expanded identifiers to $N(k-1)$ is clearly visible |
 
@@ -172,23 +172,29 @@ The tree stops once a node size reaches the base case (typically $N \le 3$) wher
 Let $K_N$ denote the complete graph on vertices $\{1,\dots,N\}$. Associate each edge $\{i,j\}$ with the factor $(a_i - a_j)$. Any edge cover by cliques yields a valid Vandermonde expression.
 
 **Problem statement.** Given integers $(a_1,\dots,a_N)$, define
+
 $$
 V_N(a_1,\dots,a_N) = \prod_{1 \le i < j \le N} (a_i - a_j).
 $$
+
 Find a recursively defined product of Vandermonde terms that is zero iff some $a_i = a_j$ yet grows only linearly in textual size.
 
 **Edge–clique cover viewpoint.** Select a family of cliques $\mathcal{C} = \{C_1,\dots,C_t\}$ where each $C_k \subseteq \{1,\dots,N\}$. Define
+
 $$
 F_{\mathcal{C}} = \prod_{k=1}^t \prod_{\{i,j\} \subseteq C_k} (a_i - a_j).
 $$
+
 If every edge of $K_N$ lies in at least one $C_k$, then $F_{\mathcal{C}} = 0$ iff some pair collides. Multiplicities do not hurt because `_Static_assert` only cares about zero vs non-zero.
 
 **Per-level cost lower bound.** When no clique spans all vertices, every vertex must appear in at least two cliques. If some vertex $v$ appeared in only one clique $C$, then for any $w \notin C$ the edge $\{v,w\}$ would be uncovered, contradicting completeness. Hence every vertex belongs to at least two cliques, so $\sum_k \lvert C_k\rvert\ge 2N$. This implies
+
 $$
 \sum_{k=1}^t |C_k| \ge 2N.
 $$
 
 **Partition construction.** Partition the vertices into $k \ge 3$ near-equal parts $V_1,\dots,V_k$. For each unordered pair $(i,j)$, add clique $C_{ij} = V_i \cup V_j$. Every intra-part edge is covered because $V_i$ participates in $(k-1)$ such unions, and every inter-part edge appears in precisely one clique. Child sizes are bounded by $\lceil 2N/k \rceil$, yielding the recurrence
+
 $$
 d(N) \le 1 + d\left(\left\lceil \frac{2N}{k} \right\rceil\right).
 $$
@@ -197,13 +203,14 @@ $$
 
 - $k=3$: depth $\lceil \log_{3/2} N \rceil$, cost $2N$.
 - $k=4$: depth $\lceil \log_2 N \rceil$, cost $3N$.
+
 Since typical compilers allow depth $D \approx 200$, $k=3$ provides optimal size without approaching the limit (even $N=10^6$ stays below 40 levels).
 
 **Self-similarity.** The $k=3$ recursion mirrors a Sierpiński-like tiling: each level computes three smaller Vandermonde products over pairwise unions $(V_i \cup V_j)$. Parameter order is preserved so that the generator can splice slices directly.
 
 ### 4.6 Edge multiplicities in clique-based recursion
 
-The clique method used in this paper produces a *cover* of the edges of the complete graph $K_N$, not a partition.
+The clique method used in this paper produces a _cover_ of the edges of the complete graph $K_N$, not a partition.
 When a family of cliques ${C_k}$ is used to express a Vandermonde-like product
 
 $$
@@ -298,9 +305,9 @@ From the output directory $O$, to find the directory to put a header that provid
 This method provides the following benefits:
 
 1. Limits directory size. If all headers were put in the same directory, file explorers would slow down, rendering access difficult.
-2. Intuitiveness. The shared prefix groups effectively forms classes
-3. Self contained. Placement computable from range only, without global state.
-4. Limited depth. Using shorter groups (such as 1 digit) would reduce directory size as the cost of increasing depth, rendering search more complicated and risking hitting platform limits. Longer groups (3, 4 digits) greatly increase directory size, allowing thousands of headers to be classified in the same directory. Groups of 2 are empirically considered the best trade-off, but the exact value can be exposed for configuration.
+2. Intuitiveness. The shared prefix groups form readable classes.
+3. Self-contained. Placement is computable from the range only, without global state.
+4. Limited depth. Using shorter groups (such as 1 digit) would reduce directory size at the cost of increasing path depth, rendering search more complicated and risking platform limits. Longer groups (3 or 4 digits) greatly increase directory size, allowing thousands of headers to be classified in the same directory. Groups of 2 are empirically considered the best trade-off, but the exact value can be exposed for configuration.
 
 ### 5.4 Configuration at generation-time
 
@@ -338,7 +345,7 @@ These choices avoid leading underscores and ensure that every identifier is vali
 
 ### 6.2 Bijection structure
 
-The encoding is *bijective*:
+The encoding is _bijective_:
 
 $$
 \text{ident} : \mathbb{N}_{\ge 0} \longrightarrow \mathcal{I},
@@ -367,16 +374,19 @@ $$
 To encode an integer $n$:
 
 1. Find the unique $L$ such that
+
    $$
    \mathrm{base}(L) \le n < \mathrm{base}(L+1).
    $$
 
 2. Compute
+
    $$
    r = n - \mathrm{base}(L).
    $$
 
 3. The identifier corresponds to writing $r$ in base-$B$ with a leading digit in base-$F$:
+
    $$
    r = d_0 B^{L-1} + d_1 B^{L-2} + \cdots + d_{L-1}.
    $$
@@ -441,7 +451,7 @@ This guarantees $\mathrm{identAntecedent}(\text{ident}(n)) = n$.
 
 ### 6.5 Stability and prefix preservation
 
-Identifiers increase by modifying the *least significant digit* first. For example:
+Identifiers increase by modifying the _least significant digit_ first. For example:
 
 ```text
 a_, a1, a2, ..., a0, ba, bb, ...
@@ -477,7 +487,9 @@ This makes `ident(n)` not a convenience, but a necessary component of `uniqenum`
   $$
   c_{\text{ident}}(N) = \left\lceil \log_{63} \frac{31N}{26} \right\rceil,
   $$
+
   ensuring that the cumulative identifier length scales gently even for large $N$.
+
 - **Generation compactness.** The same recursion tree drives both macro families; caching subtrees allows the generator to emit each `areuniqM` once even if multiple parents reference it.
 
 ## 8. Tooling and Usage
@@ -501,13 +513,26 @@ Because dependencies are emitted in dependency order, integrating the headers re
 
 ## 9. Evaluation
 
-Quantitative evaluation focuses on macro depth, file size, and compiler impact. The generator logs depth automatically, so recording compile-time and memory becomes a matter of instrumenting a build. Table 2 is a template to be filled once benchmarks are run.
+Quantitative evaluation focuses on macro depth, generated header size, and compiler impact. The benchmark harness emits headers for a range, compiles a tiny C11 translation unit using the largest `uniqenumN` in that range, and records both a check-only compile and a full compile/link to `/dev/null`. GCC and Clang use `-fsyntax-only` for the check phase; TCC does not provide a true syntax-only mode, so its check phase is compile-only object generation to `/dev/null`.
 
-Table 2 — Placeholder for empirical results (fill in after benchmarking).
+Table 2 — Empirical results for a single translation unit using `UNIQENUM_ASSERT=1`.
 
-| N range | File bytes | Max macro depth | Compile time (s) | Notes                  |
-| ------- | ---------- | --------------- | ---------------- | ---------------------- |
-| 2–64    | [TBD]      | [TBD]           | [TBD]            | Baseline sanity check. |
+| N range | File bytes | Max depth | Compiler   | Check (s) | Full (s) | Status                         |
+| ------- | ---------- | --------- | ---------- | --------- | -------- | ------------------------------ |
+| 2–64    | 44,148     | 11        | GCC 14.2   | 0.048     | 0.146    | OK                             |
+| 2–64    | 44,148     | 11        | Clang 19.1 | 34.700    | 35.017   | OK                             |
+| 2–64    | 44,148     | 11        | TCC 0.9.27 | 0.018     | 0.019    | OK                             |
+| 2–128   | 179,915    | 12        | GCC 14.2   | 0.258     | 0.354    | OK                             |
+| 2–128   | 179,915    | 12        | Clang 19.1 | 0.478     | 0.691    | failed: SIGSEGV / crash report |
+| 2–128   | 179,915    | 12        | TCC 0.9.27 | 0.097     | 0.091    | OK                             |
+| 2–256   | 746,893    | 14        | GCC 14.2   | 1.926     | 1.801    | OK                             |
+| 2–256   | 746,893    | 14        | Clang 19.1 | 3.308     | 3.315    | failed: SIGSEGV / crash report |
+| 2–256   | 746,893    | 14        | TCC 0.9.27 | 0.533     | 0.534    | OK                             |
+| 2–512   | 3,060,621  | 16        | GCC 14.2   | 11.932    | 11.301   | OK                             |
+| 2–512   | 3,060,621  | 16        | Clang 19.1 | 21.551    | 22.238   | failed: SIGSEGV / crash report |
+| 2–512   | 3,060,621  | 16        | TCC 0.9.27 | 3.239     | 3.519    | OK                             |
+
+The depth results match the expected logarithmic behavior: doubling the maximum supported `N` only increases the deepest `areuniqN` expansion by a small constant. Header size and compile time grow much faster because the compiler still parses and evaluates the expanded comparison product. TCC is fastest on this workload, GCC scales predictably, and this Clang build handles `N=64` slowly before crashing on larger inputs. The method therefore solves macro-depth scaling, while large generated ranges remain bounded by ordinary compiler parsing and constant-expression evaluation cost.
 
 The system fails gracefully in two situations:
 
@@ -563,7 +588,7 @@ Macro recursion depth is implementation-defined, but the clique recursion ensure
 
 Several questions remain open:
 
-- **Preprocessor performance ceiling.** Although textual size is linear, the preprocessor still expands products representing all unordered pairs. Measuring when this becomes impractical on various toolchains (GCC, Clang, MSVC) is future work.
+- **Preprocessor performance ceiling.** Although textual size is linear, the preprocessor still expands products representing all unordered pairs. Broader measurements across Clang, MSVC, embedded compilers, and memory-constrained environments remain future work.
 - **Assertion strategy benchmarking.** "Assert all” may increase memory but shorten debugging time; comparative metrics would inform default settings.
 - **Automatic refactoring tooling.** Converting existing codebases into `uniqenum` macros could be automated by parsing enums, asking the user for desired uniqueness / synonym groups, and inserting the appropriate code.
 - **Alternative clique parameters.** Exploring heterogeneous $k$ per level (e.g., $k=4$ near the root, $k=3$ deeper) might optimize depth while keeping size manageable for compilers that heavily constrain macro recursion depth.
@@ -646,4 +671,4 @@ _Static_assert(LEGACY_OK == OK, "synonyms must match");
 ### 13.2 References
 
 - ISO/IEC 9899:2011 — Programming Languages — C11.
-- Any introductory algebra text covering the Vandermonde determinant (e.g., Artin, *Algebra*, ch. 5).
+- Any introductory algebra text covering the Vandermonde determinant (e.g., Artin, _Algebra_, ch. 5).

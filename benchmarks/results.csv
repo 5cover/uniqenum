@@ -1,0 +1,13 @@
+range,fileBytes,maxMacroDepth,compiler,checkSeconds,checkStatus,fullSeconds,fullStatus,notes
+2-64,44148,11,"gcc (Debian 14.2.0-19) 14.2.0",0.048,"ok",0.146,"ok","syntax-only check; full compile links to /dev/null"
+2-64,44148,11,"Debian clang version 19.1.7 (3+b1)",34.700,"ok",35.017,"ok","syntax-only check; full compile links to /dev/null"
+2-64,44148,11,"tcc version 0.9.27 (x86_64 Linux)",0.018,"ok",0.019,"ok","compile-only check; full compile links to /dev/null"
+2-128,179915,12,"gcc (Debian 14.2.0-19) 14.2.0",0.258,"ok",0.354,"ok","syntax-only check; full compile links to /dev/null"
+2-128,179915,12,"Debian clang version 19.1.7 (3+b1)",0.478,"failed:SIGSEGV",0.691,"failed:1:PLEASE submit a bug report to https://github.com/llvm/llvm-project/issues/ and include the crash backtrace, preprocessed source, and associated run script.","syntax-only check; full compile links to /dev/null"
+2-128,179915,12,"tcc version 0.9.27 (x86_64 Linux)",0.097,"ok",0.091,"ok","compile-only check; full compile links to /dev/null"
+2-256,746893,14,"gcc (Debian 14.2.0-19) 14.2.0",1.926,"ok",1.801,"ok","syntax-only check; full compile links to /dev/null"
+2-256,746893,14,"Debian clang version 19.1.7 (3+b1)",3.308,"failed:SIGSEGV",3.315,"failed:1:PLEASE submit a bug report to https://github.com/llvm/llvm-project/issues/ and include the crash backtrace, preprocessed source, and associated run script.","syntax-only check; full compile links to /dev/null"
+2-256,746893,14,"tcc version 0.9.27 (x86_64 Linux)",0.533,"ok",0.534,"ok","compile-only check; full compile links to /dev/null"
+2-512,3060621,16,"gcc (Debian 14.2.0-19) 14.2.0",11.932,"ok",11.301,"ok","syntax-only check; full compile links to /dev/null"
+2-512,3060621,16,"Debian clang version 19.1.7 (3+b1)",21.551,"failed:SIGSEGV",22.238,"failed:1:PLEASE submit a bug report to https://github.com/llvm/llvm-project/issues/ and include the crash backtrace, preprocessed source, and associated run script.","syntax-only check; full compile links to /dev/null"
+2-512,3060621,16,"tcc version 0.9.27 (x86_64 Linux)",3.239,"ok",3.519,"ok","compile-only check; full compile links to /dev/null"

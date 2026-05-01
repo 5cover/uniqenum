@@ -27,7 +27,7 @@ export class CCodeGenerator implements CodeGenerator {
 #define ${assertMacroName}(N,n,t,...)
 #else
 #ifdef UNIQENUM_ASSERT_ONCE
-#define ${assertMacroName}(N,n,t,...);UNIQENUM_ASSERT_ONCE(areuniq##N(__VA_ARGS__),n,t)
+#define ${assertMacroName}(N,n,t,...)UNIQENUM_ASSERT_ONCE(areuniq##N(__VA_ARGS__),n,t)
 #else
 #define ${assertMacroName}(N,n,t,...)_Static_assert(areuniq##N(__VA_ARGS__),"enum has duplicate values: "#n" "#t)
 #endif
@@ -36,7 +36,7 @@ export class CCodeGenerator implements CodeGenerator {
         areuniq: `#if UNIQENUM_ASSERT==2
 #define ${joinMacroNameSp};
 #ifdef UNIQENUM_ASSERT_ALL
-#define areuniq2(a,b);UNIQENUM_ASSERT_ALL((a)!=(b),a,b)
+#define areuniq2(a,b)UNIQENUM_ASSERT_ALL((a)!=(b),a,b)
 #else
 #define areuniq2(a,b)_Static_assert((a)!=(b),"duplicate enum values: "#a" and "#b)
 #endif
@@ -72,7 +72,8 @@ export class CCodeGenerator implements CodeGenerator {
         return this.genAreuniq(
             w,
             n,
-            w => w.join(joinMacroNameSp, cliques, (w, [name, clique]) => callMacro(w, name.ident, g.map(clique, ident))),
+            w =>
+                w.join(joinMacroNameSp, cliques, (w, [name, clique]) => callMacro(w, name.ident, g.map(clique, ident))),
             ident
         );
     };
@@ -96,7 +97,7 @@ export class CCodeGenerator implements CodeGenerator {
         const info = new UniqenumInfo(n, scopedIdentFn(scope));
         return this.genUniqenum(w, nameUniqenum, info, w =>
             w
-                .str(' ')
+                .str(';')
                 .str(assertMacroName)
                 .str('(')
                 .int(n)

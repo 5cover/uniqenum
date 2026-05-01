@@ -2,22 +2,33 @@
 
 This folder holds benchmark utilities that are not part of the shipped package or test suite.
 
-## Structural Metrics Table
+## Paper Results Table
 
-The script `generateStructuralTable.ts` produces `benchmarks/structural-table.csv` with the columns:
-`N, areuniqSize, uniqenumSize, areuniqDepth, effectiveComparisons, minComparisons`.
-
-Run with the default N set:
+Run:
 
 ```sh
-npx tsx benchmarks/generateStructuralTable.ts
+pnpm exec tsx benchmarks/run.ts
 ```
 
-Or provide your own list (comma‑ or space‑separated):
+The script writes `benchmarks/results.csv`, which maps directly to the evaluation table in `PAPER.MD`.
+
+Columns:
+
+- `range`: inclusive generated macro range, such as `2-256`.
+- `fileBytes`: generated header size for that range.
+- `maxMacroDepth`: recursive `areuniqN` depth for the largest `N` in the range.
+- `compiler`: compiler version used for the row.
+- `checkSeconds` and `checkStatus`: syntax-only time/status for GCC/Clang; compile-only object time/status for TCC because TCC does not provide a true `-fsyntax-only` mode.
+- `fullSeconds` and `fullStatus`: complete compile/link time/status for a sample program, with output written to the platform null device.
+- `notes`: benchmark mode details.
+
+The generated sample program includes the header, defines a `uniqenumN` enum using distinct integer values, calls a function returning one enumerator, and provides `main`.
+
+By default the script tests `2-64`, `2-128`, `2-256`, and `2-512` against every available compiler among `gcc`, `clang`, and `tcc`.
+
+Custom ranges can be provided as space- or comma-separated `START-END` values:
 
 ```sh
-npx tsx benchmarks/generateStructuralTable.ts 2 3 5 8 13
-npx tsx benchmarks/generateStructuralTable.ts 4,8,16,32
+pnpm exec tsx benchmarks/run.ts 2-64 2-128
+pnpm exec tsx benchmarks/run.ts 2-64,2-128,2-256
 ```
-
-The script reuses the generator API (`src/index.ts` / `CCodeGenerator`) so measurements always reflect current generator behavior. Output is deterministic and overwrites the existing CSV in place.

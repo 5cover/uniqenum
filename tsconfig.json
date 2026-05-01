@@ -2,16 +2,18 @@
   "compilerOptions": {
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "target": "es2022",
+    "target": "es2025",
     "resolveJsonModule": true,
     "moduleDetection": "force",
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "strict": true,
-    "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "module": "NodeNext",
-    "declaration": true
+    "declaration": true,
+    "types": [
+      "node"
+    ]
   },
   "include": [
     "**/*.ts",
@@ -19,5 +21,5 @@
   ],
   "exclude": [
     "node_modules"
-  ]
+  ],
 }
