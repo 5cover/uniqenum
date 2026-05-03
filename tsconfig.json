@@ -10,7 +10,7 @@
     "strict": true,
     "noImplicitOverride": true,
     "module": "NodeNext",
-    "declaration": true,
+    "declaration": false,
     "types": [
       "node"
     ]
